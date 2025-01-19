@@ -5,4 +5,4 @@ langchain
 PyPDF2
 faiss-cpu
 chromadb
-openai
+transformers  # For HuggingFace embeddings
