@@ -1,9 +1,10 @@
 ## PDF Chat Application
-    Interact with your PDF files in a conversational way! This Streamlit-based        application allows you to upload PDFs, process their content, and ask       
+    Interact with your PDF files in a conversational way! This Streamlit-based 
+    application allows you to upload PDFs, process their content, and ask       
     questions about the text extracted from the documents. Using advanced AI 
     models   from Google Generative AI, this tool provides detailed, accurate, 
     and context-aware responses.
-``````````````````````````````````````````````````````````````````````````````````
+
 # Features
 1. **PDF Upload and Processing:**
     Upload multiple PDF files.
@@ -21,7 +22,7 @@
    
 5. **Streamlit Interface:**
     User-friendly interface for PDF upload, processing, and querying.
-``````````````````````````````````````````````````````````````````````````````````
+
 # How It Works
 1. **Upload PDFs:**
     Drag and drop one or more PDF files into the app.
@@ -44,7 +45,7 @@
    
 6. **Response Display:**
     The app displays the AI's response in a clear and concise manner.
-``````````````````````````````````````````````````````````````````````````````````
+
 # Tech Stack
 1. **Frontend:**
     Streamlit: Interactive user interface for PDF upload and Q&A.
@@ -58,13 +59,13 @@
 
 3. **Utilities:**
     dotenv: Manage environment variables securely.
-``````````````````````````````````````````````````````````````````````````````````
+
 # Setup Instructions
 **Prerequisites**
     1. Python 3.8 or higher.
     2. API Key for Google Generative AI.
     3. Basic knowledge of Python and Streamlit.
-``````````````````````````````````````````````````````````````````````````````````
+
 # Installation
 1. **Clone the repository:**
     ```bash
@@ -97,7 +98,7 @@
     ```
 
 6. Open your browser and navigate to the local URL displayed by Streamlit.
-``````````````````````````````````````````````````````````````````````````````````
+
 # Project Structure
     ```bash
     📂 pdf-chat-app
@@ -107,7 +108,7 @@
     ├── README.md               # Project documentation
     └── vector_index/           # Saved FAISS index files
     ```
-``````````````````````````````````````````````````````````````````````````````````
+
 # Usage
 1. **Upload PDFs:**
     Use the sidebar to upload one or more PDFs.
@@ -125,18 +126,18 @@
     Implement caching for processed PDFs to avoid reprocessing.
     Integrate support for multiple language queries.
     Add options for summarizing entire PDFs.
-``````````````````````````````````````````````````````````````````````````````````
+
 # Contributing
     Contributions are welcome! If you'd like to contribute, please fork the   
     repository, create a new branch, and submit a pull request. Ensure your code 
     adheres to the project's style and guidelines.
-``````````````````````````````````````````````````````````````````````````````````
+
 # License
     This project is licensed under the MIT License. See the LICENSE file for more     details.
-``````````````````````````````````````````````````````````````````````````````````
+
 # Acknowledgements
     Streamlit for an easy-to-use web app framework.
     Google Generative AI for powerful AI embeddings and models.
     LangChain for simplifying AI integration.
     FAISS for efficient similarity search.
-``````````````````````````````````````````````````````````````````````````````````
+
