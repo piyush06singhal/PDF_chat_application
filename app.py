@@ -3,7 +3,7 @@ import streamlit as st
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import os
-from langchain.embeddings import GoogleGenerativeAIEmbeddings
+from langchain.embeddings import OpenAIEmbeddings  # Changed to OpenAIEmbeddings for compatibility
 import google.generativeai as genai
 from langchain.vectorstores import FAISS
 from langchain.chains import ChatGoogleGenerativeAI
@@ -30,7 +30,7 @@ def get_text_chunks(text):
 
 def get_vector_store(text_chunks):
     """Generate and save vector store using embeddings."""
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    embeddings = OpenAIEmbeddings()  # Use OpenAI embeddings
     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
 
@@ -55,7 +55,7 @@ async def get_conversational_chain():
 
 def user_input(user_question):
     """Handle user queries by performing similarity search and generating answers."""
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    embeddings = OpenAIEmbeddings()  # Use OpenAI embeddings for consistency
     # Enable dangerous deserialization for trusted sources
     new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
     docs = new_db.similarity_search(user_question)
