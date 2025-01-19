@@ -1,9 +1,5 @@
 ## PDF Chat Application
-    Interact with your PDF files in a conversational way! This Streamlit-based 
-    application allows you to upload PDFs, process their content, and ask       
-    questions about the text extracted from the documents. Using advanced AI 
-    models   from Google Generative AI, this tool provides detailed, accurate, 
-    and context-aware responses.
+    Interact with your PDF files in a conversational way! This Streamlit-based application allows you to upload PDFs, process their content, and ask questions about the text extracted       from the documents. Using advanced AI models from Google Generative AI, this tool provides detailed, accurate, and context-aware responses.
 
 # Features
 1. **PDF Upload and Processing:**
@@ -128,16 +124,14 @@
     Add options for summarizing entire PDFs.
 
 # Contributing
-    Contributions are welcome! If you'd like to contribute, please fork the   
-    repository, create a new branch, and submit a pull request. Ensure your code 
-    adheres to the project's style and guidelines.
+    Contributions are welcome! If you'd like to contribute, please fork the repository, create a new branch, and submit a pull request. Ensure your code adheres to the project's style       and guidelines.
 
 # License
-    This project is licensed under the MIT License. See the LICENSE file for more     details.
+    This project is licensed under the MIT License. See the LICENSE file for more details.
 
 # Acknowledgements
-    Streamlit for an easy-to-use web app framework.
-    Google Generative AI for powerful AI embeddings and models.
-    LangChain for simplifying AI integration.
-    FAISS for efficient similarity search.
+    1. Streamlit for an easy-to-use web app framework.
+    2. Google Generative AI for powerful AI embeddings and models.
+    3. LangChain for simplifying AI integration.
+    4. FAISS for efficient similarity search.
 
