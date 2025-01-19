@@ -5,3 +5,4 @@ langchain
 PyPDF2
 faiss-cpu
 chromadb
+openai
