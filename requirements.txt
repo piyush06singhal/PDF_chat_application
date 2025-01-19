@@ -4,5 +4,5 @@ python-dotenv
 langchain
 PyPDF2
 faiss-cpu
+openai  # Add openai to the requirements
 chromadb
-transformers  # For HuggingFace embeddings
