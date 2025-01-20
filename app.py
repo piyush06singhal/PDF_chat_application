@@ -3,7 +3,7 @@ from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import os
 from dotenv import load_dotenv
-from langchain.embeddings import GoogleGenerativeAIEmbeddings
+from langchain.embeddings.openai import OpenAIEmbeddings  # Use OpenAIEmbeddings if GoogleGenerativeAIEmbeddings isn't available
 from langchain.vectorstores import FAISS
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
@@ -36,8 +36,8 @@ def get_text_chunks(text):
 
 def get_vector_store(text_chunks):
     """Generate and save vector store using embeddings."""
-    # Using Google Generative AI embeddings for text chunks
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")  # Correct embeddings usage
+    # Using OpenAIEmbeddings as a fallback if Google embeddings are not working
+    embeddings = OpenAIEmbeddings()  # Use OpenAI embeddings as an alternative
     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
 
@@ -66,7 +66,7 @@ def user_input(user_question):
     """Handle user queries by performing similarity search and generating answers."""
     try:
         # Load the vector store with embeddings
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")  # Correct embeddings usage
+        embeddings = OpenAIEmbeddings()  # Use OpenAI embeddings as an alternative
         new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
         docs = new_db.similarity_search(user_question)
         
