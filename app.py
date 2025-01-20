@@ -2,10 +2,8 @@ import streamlit as st
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import os
-from langchain.embeddings.google import GoogleEmbeddings
 import google.generativeai as genai
 from langchain.vectorstores import FAISS
-from langchain.chat_models import ChatGoogleGenerativeAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
@@ -37,7 +35,8 @@ def get_text_chunks(text):
 
 def get_vector_store(text_chunks):
     """Generate and save vector store using embeddings."""
-    embeddings = GoogleEmbeddings(model="models/embedding-001")
+    # Using Google Generative AI embeddings for text chunks
+    embeddings = genai.Embeddings.create(model="models/embedding-001", text_list=text_chunks)
     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
 
@@ -57,17 +56,20 @@ def get_conversational_chain():
 
     Answer:
     """
-    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
+    model = genai.ChatCompletion.create(model="gemini-pro", temperature=0.3)
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     return load_qa_chain(model, chain_type="stuff", prompt=prompt)
 
 
 def user_input(user_question):
     """Handle user queries by performing similarity search and generating answers."""
-    embeddings = GoogleEmbeddings(model="models/embedding-001")
     try:
+        # Load the vector store with embeddings
+        embeddings = genai.Embeddings.create(model="models/embedding-001")
         new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
         docs = new_db.similarity_search(user_question)
+        
+        # Get the conversational chain for answering questions
         chain = get_conversational_chain()
         response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
         st.write("Reply: ", response["output_text"])
