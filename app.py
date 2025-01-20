@@ -3,9 +3,9 @@ import streamlit as st
 from langchain_community.embeddings.openai import OpenAIEmbeddings
 from langchain_community.vectorstores.faiss import FAISS
 import os
+import PyPDF2
 
 # Load the OpenAI API key from environment variable or Streamlit secrets
-# For local environment, use the environment variable
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # If you're using Streamlit Cloud, you can store the API key in secrets.toml and use the following line:
@@ -25,6 +25,9 @@ def get_vector_store(text_chunks):
     except openai.error.AuthenticationError as e:
         st.error(f"Authentication Error: {e}")
         raise  # Re-raise to stop further execution
+    except openai.error.OpenAIError as e:
+        st.error(f"OpenAI API Error: {e}")
+        raise  # Re-raise to stop further execution
     except Exception as e:
         st.error(f"An error occurred while creating the vector store: {e}")
         raise  # Re-raise to stop further execution
@@ -38,8 +41,6 @@ def main():
     if uploaded_file is not None:
         # Read the PDF file
         try:
-            # You can add your PDF processing logic here (for example, using PyPDF2 or other PDF libraries)
-            import PyPDF2
             pdf_reader = PyPDF2.PdfReader(uploaded_file)
             text_chunks = []
 
