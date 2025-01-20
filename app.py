@@ -15,7 +15,8 @@ load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 if not api_key:
     st.error("Google API Key is missing. Please add it to your .env file.")
-genai.configure(api_key=api_key)
+else:
+    genai.configure(api_key=api_key)
 
 
 def get_pdf_text(pdf_docs):
@@ -64,7 +65,6 @@ def get_conversational_chain():
 def user_input(user_question):
     """Handle user queries by performing similarity search and generating answers."""
     embeddings = GoogleEmbeddings(model="models/embedding-001")
-    # Enable dangerous deserialization for trusted sources
     try:
         new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
         docs = new_db.similarity_search(user_question)
