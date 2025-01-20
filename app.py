@@ -2,13 +2,13 @@ import openai
 import streamlit as st
 from langchain_community.embeddings.openai import OpenAIEmbeddings
 from langchain_community.vectorstores.faiss import FAISS
-from langchain_community.chains import LLMChain
 import os
 
-# If you're using environment variables for API key:
+# Load the OpenAI API key from environment variable or Streamlit secrets
+# For local environment, use the environment variable
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# If you're using Streamlit secrets, you can use the following:
+# If you're using Streamlit Cloud, you can store the API key in secrets.toml and use the following line:
 # openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 # Check if the API key is properly set
@@ -30,13 +30,46 @@ def get_vector_store(text_chunks):
         raise  # Re-raise to stop further execution
 
 def main():
-    # Example: Replace with your actual logic
-    text_chunks = ["This is a sample document.", "Here is another chunk."]
-    vector_store = get_vector_store(text_chunks)
+    st.title("PDF Chat Application")
+
+    # File upload widget for PDF files
+    uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
     
-    if vector_store:
-        st.write("Vector store created successfully!")
-        # Continue with your logic here...
+    if uploaded_file is not None:
+        # Read the PDF file
+        try:
+            # You can add your PDF processing logic here (for example, using PyPDF2 or other PDF libraries)
+            import PyPDF2
+            pdf_reader = PyPDF2.PdfReader(uploaded_file)
+            text_chunks = []
+
+            # Extract text from each page in the PDF and store as chunks
+            for page in pdf_reader.pages:
+                text = page.extract_text()
+                if text:
+                    text_chunks.append(text)
+
+            if text_chunks:
+                # Create the vector store from the text chunks
+                vector_store = get_vector_store(text_chunks)
+
+                if vector_store:
+                    st.write("Vector store created successfully!")
+                    
+                    # Example: You can further integrate this vector store with your chatbot or search system
+                    # Implement your chatbot logic or search functionality here
+
+                    st.success("Application is ready for interacting with the uploaded PDF.")
+                else:
+                    st.error("Failed to create the vector store.")
+            else:
+                st.warning("No text found in the PDF.")
+        
+        except Exception as e:
+            st.error(f"An error occurred while processing the PDF: {e}")
+    
+    else:
+        st.info("Please upload a PDF to get started.")
 
 if __name__ == "__main__":
     main()
