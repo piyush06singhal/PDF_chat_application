@@ -1,22 +1,25 @@
+import asyncio
 import streamlit as st
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import os
-from dotenv import load_dotenv
-from langchain.embeddings.openai import OpenAIEmbeddings  # Use OpenAIEmbeddings if GoogleGenerativeAIEmbeddings isn't available
+from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
-import google.generativeai as genai
+from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables from .env file
 load_dotenv()
-api_key = os.getenv("GOOGLE_API_KEY")
-if not api_key:
-    st.error("Google API Key is missing. Please add it to your .env file.")
-else:
-    genai.configure(api_key=api_key)
 
+# Ensure OPENAI_API_KEY is in the environment
+openai_api_key = os.getenv("OPENAI_API_KEY")
+
+if not openai_api_key:
+    st.error("OpenAI API Key is missing. Please add it to your .env file.")
+
+# Initialize OpenAI Embeddings with the API key
+embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
 
 def get_pdf_text(pdf_docs):
     """Extract text from uploaded PDF files."""
@@ -24,26 +27,24 @@ def get_pdf_text(pdf_docs):
     for pdf in pdf_docs:
         pdf_reader = PdfReader(pdf)
         for page in pdf_reader.pages:
-            text += page.extract_text() or ""
+            text += page.extract_text()
     return text
 
 
 def get_text_chunks(text):
     """Split text into manageable chunks."""
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
     return text_splitter.split_text(text)
 
 
 def get_vector_store(text_chunks):
     """Generate and save vector store using embeddings."""
-    # Using OpenAIEmbeddings as a fallback if Google embeddings are not working
-    embeddings = OpenAIEmbeddings()  # Use OpenAI embeddings as an alternative
     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
 
 
-def get_conversational_chain():
-    """Set up a question-answering chain with a custom prompt."""
+async def get_conversational_chain():
+    """Set up a question-answering chain with a custom prompt asynchronously."""
     prompt_template = """
     Answer the question as detailed as possible from the provided context. 
     If the answer is not in the provided context, say, "Answer is not available in the context."
@@ -57,25 +58,19 @@ def get_conversational_chain():
 
     Answer:
     """
-    model = genai.ChatCompletion.create(model="gemini-pro", temperature=0.3)
+    model = OpenAIEmbeddings(model="text-davinci-003", temperature=0.3)
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     return load_qa_chain(model, chain_type="stuff", prompt=prompt)
 
 
-def user_input(user_question):
-    """Handle user queries by performing similarity search and generating answers."""
-    try:
-        # Load the vector store with embeddings
-        embeddings = OpenAIEmbeddings()  # Use OpenAI embeddings as an alternative
-        new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
-        docs = new_db.similarity_search(user_question)
-        
-        # Get the conversational chain for answering questions
-        chain = get_conversational_chain()
-        response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
-        st.write("Reply: ", response["output_text"])
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
+async def user_input(user_question):
+    """Handle user queries by performing similarity search and generating answers asynchronously."""
+    # Enable dangerous deserialization for trusted sources
+    new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
+    docs = new_db.similarity_search(user_question)
+    chain = await get_conversational_chain()
+    response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
+    st.write("Reply: ", response["output_text"])
 
 
 def main():
@@ -90,20 +85,17 @@ def main():
         if st.button("Submit & Process"):
             if pdf_docs:
                 with st.spinner("Processing..."):
-                    try:
-                        raw_text = get_pdf_text(pdf_docs)
-                        text_chunks = get_text_chunks(raw_text)
-                        get_vector_store(text_chunks)
-                        st.success("PDFs processed successfully!")
-                    except Exception as e:
-                        st.error(f"Error processing PDFs: {e}")
+                    raw_text = get_pdf_text(pdf_docs)
+                    text_chunks = get_text_chunks(raw_text)
+                    get_vector_store(text_chunks)
+                    st.success("PDFs processed successfully!")
             else:
                 st.warning("Please upload at least one PDF file.")
 
     # User input and response generation
     user_question = st.text_input("Ask a question based on the PDF content")
     if user_question:
-        user_input(user_question)
+        asyncio.run(user_input(user_question))
 
 
 if __name__ == "__main__":
