@@ -1,24 +1,19 @@
-import os
+import asyncio
 import streamlit as st
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings
+import os
+from dotenv import load_dotenv
+from langchain.embeddings.openai import OpenAIEmbeddings  # Correct import
 from langchain.vectorstores import FAISS
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
-from dotenv import load_dotenv
 import openai
 
 # Load environment variables
 load_dotenv()
 
-# Get the OpenAI API Key from .env file
-openai_api_key = os.getenv("OPENAI_API_KEY")
-if not openai_api_key:
-    raise ValueError("OpenAI API Key is missing. Please add it to your .env file.")
-
-# Set OpenAI API key globally for OpenAI library
-openai.api_key = openai_api_key
+openai.api_key = os.getenv("OPENAI_API_KEY")  # Ensure the correct OpenAI key is loaded
 
 def get_pdf_text(pdf_docs):
     """Extract text from uploaded PDF files."""
@@ -37,8 +32,8 @@ def get_text_chunks(text):
 
 
 def get_vector_store(text_chunks):
-    """Generate and save vector store using embeddings."""
-    embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
+    """Generate and save vector store using OpenAI embeddings."""
+    embeddings = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
 
@@ -58,16 +53,15 @@ async def get_conversational_chain():
 
     Answer:
     """
-    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)  # Example model, use the right one
+    model = openai.ChatCompletion.create(model="gpt-3.5-turbo", temperature=0.3)  # OpenAI model
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     return load_qa_chain(model, chain_type="stuff", prompt=prompt)
 
 
 async def user_input(user_question):
     """Handle user queries by performing similarity search and generating answers asynchronously."""
-    embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
-    # Enable dangerous deserialization for trusted sources
-    new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
+    embeddings = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
+    new_db = FAISS.load_local("faiss_index", embeddings)
     docs = new_db.similarity_search(user_question)
     chain = await get_conversational_chain()
     response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
