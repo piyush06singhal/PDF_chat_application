@@ -1,76 +1,97 @@
-import openai
+import asyncio
 import streamlit as st
-from langchain_community.embeddings.openai import OpenAIEmbeddings
-from langchain_community.vectorstores.faiss import FAISS
+from PyPDF2 import PdfReader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 import os
-import PyPDF2
+from dotenv import load_dotenv
+from langchain.embeddings.openai import OpenAIEmbeddings  # Correct import
+from langchain.vectorstores import FAISS
+from langchain.chains.question_answering import load_qa_chain
+from langchain.prompts import PromptTemplate
+import openai
 
-# Load the OpenAI API key from environment variable or Streamlit secrets
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Load environment variables
+load_dotenv()
 
-# If you're using Streamlit Cloud, you can store the API key in secrets.toml and use the following line:
-# openai.api_key = st.secrets["OPENAI_API_KEY"]
+openai.api_key = os.getenv("OPENAI_API_KEY")  # Ensure the correct OpenAI key is loaded
 
-# Check if the API key is properly set
-if not openai.api_key:
-    st.error("OpenAI API key is not set! Please configure your key.")
-    raise ValueError("OpenAI API key is missing")
+def get_pdf_text(pdf_docs):
+    """Extract text from uploaded PDF files."""
+    text = ""
+    for pdf in pdf_docs:
+        pdf_reader = PdfReader(pdf)
+        for page in pdf_reader.pages:
+            text += page.extract_text()
+    return text
+
+
+def get_text_chunks(text):
+    """Split text into manageable chunks."""
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
+    return text_splitter.split_text(text)
+
 
 def get_vector_store(text_chunks):
-    try:
-        embeddings = OpenAIEmbeddings()
-        # Create FAISS vector store from text chunks
-        vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
-        return vector_store
-    except openai.error.AuthenticationError as e:
-        st.error(f"Authentication Error: {e}")
-        raise  # Re-raise to stop further execution
-    except openai.error.OpenAIError as e:
-        st.error(f"OpenAI API Error: {e}")
-        raise  # Re-raise to stop further execution
-    except Exception as e:
-        st.error(f"An error occurred while creating the vector store: {e}")
-        raise  # Re-raise to stop further execution
+    """Generate and save vector store using OpenAI embeddings."""
+    embeddings = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
+    vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
+    vector_store.save_local("faiss_index")
+
+
+async def get_conversational_chain():
+    """Set up a question-answering chain with a custom prompt asynchronously."""
+    prompt_template = """
+    Answer the question as detailed as possible from the provided context. 
+    If the answer is not in the provided context, say, "Answer is not available in the context."
+    Do not provide incorrect or fabricated answers.
+
+    Context:
+    {context}
+
+    Question:
+    {question}
+
+    Answer:
+    """
+    model = openai.ChatCompletion.create(model="gpt-3.5-turbo", temperature=0.3)  # OpenAI model
+    prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
+    return load_qa_chain(model, chain_type="stuff", prompt=prompt)
+
+
+async def user_input(user_question):
+    """Handle user queries by performing similarity search and generating answers asynchronously."""
+    embeddings = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
+    new_db = FAISS.load_local("faiss_index", embeddings)
+    docs = new_db.similarity_search(user_question)
+    chain = await get_conversational_chain()
+    response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
+    st.write("Reply: ", response["output_text"])
+
 
 def main():
-    st.title("PDF Chat Application")
+    """Main Streamlit application function."""
+    st.set_page_config(page_title="PDF Chat Application")
+    st.header("📄 Interact with Your PDFs")
 
-    # File upload widget for PDF files
-    uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
-    
-    if uploaded_file is not None:
-        # Read the PDF file
-        try:
-            pdf_reader = PyPDF2.PdfReader(uploaded_file)
-            text_chunks = []
-
-            # Extract text from each page in the PDF and store as chunks
-            for page in pdf_reader.pages:
-                text = page.extract_text()
-                if text:
-                    text_chunks.append(text)
-
-            if text_chunks:
-                # Create the vector store from the text chunks
-                vector_store = get_vector_store(text_chunks)
-
-                if vector_store:
-                    st.write("Vector store created successfully!")
-                    
-                    # Example: You can further integrate this vector store with your chatbot or search system
-                    # Implement your chatbot logic or search functionality here
-
-                    st.success("Application is ready for interacting with the uploaded PDF.")
-                else:
-                    st.error("Failed to create the vector store.")
+    # Sidebar for PDF upload
+    with st.sidebar:
+        st.title("Menu:")
+        pdf_docs = st.file_uploader("Upload PDF Files and Click on Submit Button ", accept_multiple_files=True)
+        if st.button("Submit & Process"):
+            if pdf_docs:
+                with st.spinner("Processing..."):
+                    raw_text = get_pdf_text(pdf_docs)
+                    text_chunks = get_text_chunks(raw_text)
+                    get_vector_store(text_chunks)
+                    st.success("PDFs processed successfully!")
             else:
-                st.warning("No text found in the PDF.")
-        
-        except Exception as e:
-            st.error(f"An error occurred while processing the PDF: {e}")
-    
-    else:
-        st.info("Please upload a PDF to get started.")
+                st.warning("Please upload at least one PDF file.")
+
+    # User input and response generation
+    user_question = st.text_input("Ask a question based on the PDF content")
+    if user_question:
+        asyncio.run(user_input(user_question))
+
 
 if __name__ == "__main__":
     main()
