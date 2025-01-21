@@ -3,10 +3,10 @@ import streamlit as st
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import os
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain.embeddings import OpenAIEmbeddings
 import google.generativeai as genai
 from langchain.vectorstores import FAISS
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.chat_models import ChatOpenAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-
 
 def get_pdf_text(pdf_docs):
     """Extract text from uploaded PDF files."""
@@ -25,19 +24,16 @@ def get_pdf_text(pdf_docs):
             text += page.extract_text()
     return text
 
-
 def get_text_chunks(text):
     """Split text into manageable chunks."""
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     return text_splitter.split_text(text)
-
 
 def get_vector_store(text_chunks):
     """Generate and save vector store using embeddings."""
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    embeddings = OpenAIEmbeddings()
     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
-
 
 async def get_conversational_chain():
     """Set up a question-answering chain with a custom prompt asynchronously."""
@@ -54,21 +50,18 @@ async def get_conversational_chain():
 
     Answer:
     """
-    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
+    model = ChatOpenAI(temperature=0.3)
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     return load_qa_chain(model, chain_type="stuff", prompt=prompt)
 
-
 async def user_input(user_question):
     """Handle user queries by performing similarity search and generating answers asynchronously."""
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    # Enable dangerous deserialization for trusted sources
+    embeddings = OpenAIEmbeddings()
     new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
     docs = new_db.similarity_search(user_question)
     chain = await get_conversational_chain()
     response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
     st.write("Reply: ", response["output_text"])
-
 
 def main():
     """Main Streamlit application function."""
@@ -94,6 +87,5 @@ def main():
     if user_question:
         asyncio.run(user_input(user_question))
 
-
 if __name__ == "__main__":
-    main() 
+    main()
