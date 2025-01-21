@@ -3,17 +3,18 @@ import streamlit as st
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import os
-from dotenv import load_dotenv
-from langchain.embeddings.openai import OpenAIEmbeddings  # Correct import
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+import google.generativeai as genai
 from langchain.vectorstores import FAISS
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
-import openai
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-openai.api_key = os.getenv("OPENAI_API_KEY")  # Ensure the correct OpenAI key is loaded
 
 def get_pdf_text(pdf_docs):
     """Extract text from uploaded PDF files."""
@@ -32,8 +33,8 @@ def get_text_chunks(text):
 
 
 def get_vector_store(text_chunks):
-    """Generate and save vector store using OpenAI embeddings."""
-    embeddings = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
+    """Generate and save vector store using embeddings."""
+    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
 
@@ -53,15 +54,16 @@ async def get_conversational_chain():
 
     Answer:
     """
-    model = openai.ChatCompletion.create(model="gpt-3.5-turbo", temperature=0.3)  # OpenAI model
+    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     return load_qa_chain(model, chain_type="stuff", prompt=prompt)
 
 
 async def user_input(user_question):
     """Handle user queries by performing similarity search and generating answers asynchronously."""
-    embeddings = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
-    new_db = FAISS.load_local("faiss_index", embeddings)
+    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    # Enable dangerous deserialization for trusted sources
+    new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
     docs = new_db.similarity_search(user_question)
     chain = await get_conversational_chain()
     response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
