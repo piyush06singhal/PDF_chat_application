@@ -4,7 +4,5 @@ python-dotenv
 langchain
 PyPDF2
 faiss-cpu
-langchain-community
-openai
+langchain_google_genaip
 chromadb
-tiktoken
