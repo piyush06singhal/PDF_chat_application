@@ -175,7 +175,25 @@ def application_interface():
     else:
         st.session_state["show_question_box"] = False
 
+    # About Section
     st.markdown("<hr class='separator'>", unsafe_allow_html=True)
+    st.header("ℹ️ About This Project")
+    st.markdown(
+        """
+        The **PDF Chat Assistant** is an innovative tool designed to simplify the way you interact with your PDF documents. 
+        With the power of advanced AI, this application allows you to:
+        - Upload and process multiple PDF documents seamlessly.
+        - Extract and analyze text content efficiently.
+        - Ask natural language questions and receive precise answers from the content of your uploaded PDFs.
+
+        **Why Use This Tool?**
+        - Save time by quickly finding relevant information from lengthy documents.
+        - Enhance productivity with an intuitive and user-friendly interface.
+        - Leverage AI to get contextual answers without manually searching through PDFs.
+        
+        This tool is built using **Streamlit**, **OpenAI**, and **Langchain**, ensuring a smooth and accurate experience.
+        """
+    )
 
     # Footer
     st.markdown(
@@ -183,9 +201,9 @@ def application_interface():
         <footer>
             © 2025 Piyush Singhal. All rights reserved.
             <div class="footer-icons">
-                <a href="https://github.com" target="_blank">GitHub</a>
-                <a href="https://linkedin.com" target="_blank">LinkedIn</a>
-                <a href="https://twitter.com" target="_blank">Twitter</a>
+                <a href="https://github.com/piyush06singhal" target="_blank">GitHub</a>
+                <a href="https://www.linkedin.com/in/piyush--singhal/" target="_blank">LinkedIn</a>
+                <a href="https://x.com/PiyushS07508112" target="_blank">Twitter</a>
             </div>
         </footer>
         """,
