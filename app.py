@@ -82,7 +82,6 @@ def main():
                     build_and_save_vector_index(text_segments)
                     st.success("PDFs successfully processed and indexed!")
                     st.session_state.pdf_processed = True  # Update state
-                    st.experimental_rerun()  # Force app to reload and apply the new state
             else:
                 st.warning("Please upload at least one PDF file.")
     else:
