@@ -117,7 +117,7 @@ async def process_user_query(user_query):
     relevant_docs = vector_store.similarity_search(user_query)
     qa_chain = await configure_qa_chain()
     response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
-    st.write("AI Response:", response["output_text"])
+    st.write("**AI Response:**", response["output_text"])
 
 def application_interface():
     """Define the main interface and workflow of the Streamlit app."""
@@ -131,7 +131,11 @@ def application_interface():
     st.markdown("**Interact with your PDFs effortlessly using advanced AI!**")
 
     # Multi-tab layout
-    tabs = st.tabs(["📂 Upload PDFs", "💬 Chat with PDFs", "ℹ️ About"])
+    tabs = st.tabs(["📂 Upload PDFs", "ℹ️ About"])
+
+    # State variable to toggle the question box
+    if "show_question_box" not in st.session_state:
+        st.session_state["show_question_box"] = False
 
     with tabs[0]:  # Upload PDFs Tab
         st.header("📂 Upload and Process PDFs")
@@ -143,20 +147,23 @@ def application_interface():
                     text_segments = split_text_into_chunks(document_text)
                     build_and_save_vector_index(text_segments)
                     st.success("PDFs successfully processed and indexed!")
+                    # Show question box after processing
+                    st.session_state["show_question_box"] = True
             else:
                 st.warning("Please upload at least one PDF file.")
 
-    with tabs[1]:  # Chat with PDFs Tab
-        st.header("💬 Ask Questions from Your PDFs")
-        query = st.text_input("Type your question here:")
-        if query:
-            asyncio.run(process_user_query(query))
+        # Display question input box after processing
+        if st.session_state["show_question_box"]:
+            st.header("💬 Ask Questions from Your PDFs")
+            query = st.text_input("Type your question here:")
+            if query:
+                asyncio.run(process_user_query(query))
 
-    with tabs[2]:  # About Tab
+    with tabs[1]:  # About Tab
         st.header("ℹ️ About This Application")
-        st.markdown("""
+        st.markdown(""" 
         This **PDF Chat Assistant** allows you to upload PDF files, process their content, and ask questions interactively.
-        
+
         **Key Features:**
         - Upload and process multiple PDFs.
         - Use AI to generate context-based answers to your queries.
