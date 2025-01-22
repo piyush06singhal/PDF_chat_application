@@ -9,7 +9,6 @@ from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 import os
-import time  # For smooth UI animations
 
 # Initialize API configuration
 load_dotenv()
@@ -35,13 +34,10 @@ def add_custom_css():
                 border-radius: 10px !important;
                 font-size: 18px !important;
                 padding: 10px 20px;
-                box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.3);
             }
             .stButton>button:hover {
                 background-color: #55efc4 !important;
                 color: black !important;
-                transform: scale(1.05);
-                transition: 0.3s ease;
             }
             .stTextInput>div>div>input {
                 border-radius: 10px !important;
@@ -54,11 +50,15 @@ def add_custom_css():
             h1, h2, h3, h4 {
                 color: #00cec9 !important;
             }
-            .separator {
-                border: 0;
-                height: 2px;
-                background: linear-gradient(90deg, #00cec9, #2d3436, #00cec9);
-                margin: 20px 0;
+            .stTabs>div>div>button {
+                font-size: 16px !important;
+                background-color: #2d3436 !important;
+                color: #ffffff !important;
+                border: 1px solid #00cec9 !important;
+                border-radius: 5px !important;
+            }
+            .stTabs>div>div>button:hover {
+                background-color: #636e72 !important;
             }
             footer {
                 text-align: center;
@@ -66,17 +66,16 @@ def add_custom_css():
                 font-size: 14px;
                 margin-top: 20px;
             }
-            footer .footer-icons {
+            .footer-links {
                 margin-top: 10px;
             }
-            footer .footer-icons a {
-                color: #00cec9;
-                font-size: 20px;
+            .footer-links a {
+                color: #00cec9 !important;
+                text-decoration: none;
                 margin: 0 10px;
-                transition: color 0.3s;
             }
-            footer .footer-icons a:hover {
-                color: #55efc4;
+            .footer-links a:hover {
+                text-decoration: underline;
             }
         </style>
         """,
@@ -142,49 +141,60 @@ def application_interface():
     st.title("📖 PDF Chat Assistant")
     st.markdown("**Interact with your PDFs effortlessly using advanced AI!**")
 
+    # Multi-tab layout
+    tabs = st.tabs(["📂 Upload PDFs", "ℹ️ About"])
+
     # State variable to toggle the question box
     if "show_question_box" not in st.session_state:
         st.session_state["show_question_box"] = False
 
-    st.markdown("<hr class='separator'>", unsafe_allow_html=True)
+    with tabs[0]:  # Upload PDFs Tab
+        st.header("📂 Upload and Process PDFs")
+        uploaded_files = st.file_uploader("Upload your PDF files here:", accept_multiple_files=True)
 
-    # PDF Upload Section
-    st.header("📂 Upload and Process PDFs")
-    uploaded_files = st.file_uploader("Upload your PDF files here:", accept_multiple_files=True)
+        if st.button("Process PDFs"):
+            if uploaded_files:
+                with st.spinner("Processing PDFs..."):
+                    document_text = extract_text_from_pdfs(uploaded_files)
+                    text_segments = split_text_into_chunks(document_text)
+                    build_and_save_vector_index(text_segments)
+                    st.success("PDFs successfully processed!")
+                    # Show question box after processing
+                    st.session_state["show_question_box"] = True
+            else:
+                st.warning("Please upload at least one PDF file.")
 
-    if st.button("Process PDFs"):
-        if uploaded_files:
-            with st.spinner("Processing PDFs..."):
-                document_text = extract_text_from_pdfs(uploaded_files)
-                text_segments = split_text_into_chunks(document_text)
-                build_and_save_vector_index(text_segments)
-                time.sleep(1)  # Simulate smooth transition
-                st.success("PDFs successfully processed!")
-                st.session_state["show_question_box"] = True
-        else:
-            st.warning("Please upload at least one PDF file.")
-            st.session_state["show_question_box"] = False
+        # Add spacing after the Process PDFs button
+        st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
-    # Display question input box only if PDFs are processed
-    if st.session_state["show_question_box"]:
-        st.markdown("<hr class='separator'>", unsafe_allow_html=True)
-        st.header("💬 Ask Questions from Your PDFs")
-        query = st.text_input("Type your question here:")
-        if query:
-            asyncio.run(process_user_query(query))
-    else:
-        st.session_state["show_question_box"] = False
+        # Display question input box after processing
+        if st.session_state["show_question_box"]:
+            st.header("💬 Ask Questions from Your PDFs")
+            query = st.text_input("Type your question here:")
+            if query:
+                asyncio.run(process_user_query(query))
 
-    st.markdown("<hr class='separator'>", unsafe_allow_html=True)
+    with tabs[1]:  # About Tab
+        st.header("ℹ️ About This Application")
+        st.markdown(""" 
+        This **PDF Chat Assistant** allows you to upload PDF files, process their content, and ask questions interactively.
 
-    # Footer
+        **Key Features:**
+        - Upload and process multiple PDFs.
+        - Use AI to generate context-based answers to your queries.
+        - Efficient document search using FAISS.
+
+        Built using Streamlit, LangChain, and Google Generative AI.
+        """)
+
+    # Footer with social media links
     st.markdown(
         """
         <footer>
-            © 2025 Piyush Singhal. All rights reserved.
-            <div class="footer-icons">
-                <a href="https://github.com/piyush06singhal" target="_blank">GitHub</a>
-                <a href="https://www.linkedin.com/in/piyush--singhal/" target="_blank">LinkedIn</a>
+            <p>© 2025 Piyush Singhal. All rights reserved.</p>
+            <div class="footer-links">
+                <a href="https://github.com/piyush06singhal" target="_blank">GitHub</a> |
+                <a href="https://www.linkedin.com/in/piyush--singhal/" target="_blank">LinkedIn</a> |
                 <a href="https://x.com/PiyushS07508112" target="_blank">Twitter</a>
             </div>
         </footer>
