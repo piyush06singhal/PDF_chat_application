@@ -14,7 +14,7 @@ import os
 load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 
-# Custom CSS for enhanced UI with black background
+# Custom CSS for enhanced UI with dark theme and improved visibility
 def add_custom_css():
     st.markdown(
         """
@@ -32,8 +32,8 @@ def add_custom_css():
                 background-color: #00b894 !important;
                 color: white !important;
                 border-radius: 10px !important;
-                font-size: 18px !important;
-                padding: 10px 20px;
+                font-size: 20px !important;
+                padding: 12px 24px;
             }
             .stButton>button:hover {
                 background-color: #55efc4 !important;
@@ -41,17 +41,18 @@ def add_custom_css():
             }
             .stTextInput>div>div>input {
                 border-radius: 10px !important;
-                font-size: 18px !important;
-                padding: 10px;
+                font-size: 20px !important;
+                padding: 12px;
                 background-color: #2d3436 !important;
                 color: white !important;
                 border: 1px solid #ffffff !important;
             }
             h1, h2, h3, h4 {
                 color: #00cec9 !important;
+                font-size: 28px !important;
             }
             .stTabs>div>div>button {
-                font-size: 16px !important;
+                font-size: 18px !important;
                 background-color: #2d3436 !important;
                 color: #ffffff !important;
                 border: 1px solid #00cec9 !important;
@@ -63,8 +64,15 @@ def add_custom_css():
             footer {
                 text-align: center;
                 color: #dfe6e9;
-                font-size: 14px;
+                font-size: 16px;
                 margin-top: 20px;
+            }
+            .stMarkdown h1 {
+                font-size: 32px !important;
+                color: #00cec9 !important;
+            }
+            .stMarkdown p {
+                font-size: 18px !important;
             }
         </style>
         """,
@@ -126,14 +134,28 @@ def application_interface():
     # Add custom CSS
     add_custom_css()
 
-    # App Header
-    st.title("📖 AI-Powered PDF Chat Assistant")
-    st.markdown("**Interact with your PDFs effortlessly using advanced AI!**")
+    # Multi-tab layout with "About" section first
+    tabs = st.tabs(["ℹ️ About", "📂 Upload PDFs", "💬 Chat with PDFs"])
 
-    # Multi-tab layout
-    tabs = st.tabs(["📂 Upload PDFs", "💬 Chat with PDFs", "ℹ️ About"])
+    with tabs[0]:  # About Tab
+        st.header("ℹ️ About This Application")
+        st.markdown("""
+        ## Welcome to the **PDF Chat Assistant**!
 
-    with tabs[0]:  # Upload PDFs Tab
+        This application allows you to:
+        - **Upload PDFs** to extract and process content.
+        - **Ask Questions** interactively and get context-aware answers.
+        - **Efficient Search** with AI-powered embeddings and FAISS index.
+
+        ### Features:
+        - **Multiple PDF Uploads**: Process multiple PDFs at once.
+        - **Smart Querying**: Context-based answers from document text.
+        - **User-Friendly Interface**: Optimized for a seamless experience.
+
+        Built with ❤️ using **Streamlit**, **LangChain**, and **Google Generative AI**.
+        """)
+
+    with tabs[1]:  # Upload PDFs Tab
         st.header("📂 Upload and Process PDFs")
         uploaded_files = st.file_uploader("Upload your PDF files here:", accept_multiple_files=True)
         if st.button("Process PDFs"):
@@ -146,24 +168,11 @@ def application_interface():
             else:
                 st.warning("Please upload at least one PDF file.")
 
-    with tabs[1]:  # Chat with PDFs Tab
+    with tabs[2]:  # Chat with PDFs Tab
         st.header("💬 Ask Questions from Your PDFs")
         query = st.text_input("Type your question here:")
         if query:
             asyncio.run(process_user_query(query))
-
-    with tabs[2]:  # About Tab
-        st.header("ℹ️ About This Application")
-        st.markdown("""
-        This **PDF Chat Assistant** allows you to upload PDF files, process their content, and ask questions interactively.
-        
-        **Key Features:**
-        - Upload and process multiple PDFs.
-        - Use AI to generate context-based answers to your queries.
-        - Efficient document search using FAISS.
-
-        Built with ❤️ using Streamlit, LangChain, and Google Generative AI.
-        """)
 
     # Footer
     st.markdown("<footer>© 2025 AI PDF Assistant. All rights reserved.</footer>", unsafe_allow_html=True)
