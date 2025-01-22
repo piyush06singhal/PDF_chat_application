@@ -127,7 +127,7 @@ def application_interface():
     add_custom_css()
 
     # App Header
-    st.title("📖 AI-Powered PDF Chat Assistant")
+    st.title("📖 PDF Chat Assistant")
     st.markdown("**Interact with your PDFs effortlessly using advanced AI!**")
 
     # Multi-tab layout
@@ -162,11 +162,11 @@ def application_interface():
         - Use AI to generate context-based answers to your queries.
         - Efficient document search using FAISS.
 
-        Built with ❤️ using Streamlit, LangChain, and Google Generative AI.
+        Built using Streamlit, LangChain, and Google Generative AI.
         """)
 
     # Footer
-    st.markdown("<footer>© 2025 AI PDF Assistant. All rights reserved.</footer>", unsafe_allow_html=True)
+    st.markdown("<footer>© 2025 Piyush Singhal. All rights reserved.</footer>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     application_interface()
