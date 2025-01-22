@@ -14,6 +14,54 @@ import os
 load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 
+# Custom CSS for enhanced UI
+def add_custom_css():
+    st.markdown(
+        """
+        <style>
+            body {
+                background-color: #f5f5f5;
+                color: #333333;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            }
+            .stApp {
+                background: linear-gradient(to bottom right, #4e54c8, #8f94fb);
+                color: white;
+            }
+            .stButton>button {
+                background-color: #4CAF50 !important;
+                color: white !important;
+                border-radius: 10px !important;
+                font-size: 18px !important;
+            }
+            .stTextInput>div>div>input {
+                border-radius: 10px !important;
+                font-size: 18px !important;
+            }
+            h1, h2, h3, h4 {
+                color: white !important;
+            }
+            .stTabs>div>div>button {
+                font-size: 16px !important;
+                background-color: #4e54c8 !important;
+                color: white !important;
+                border: 1px solid white !important;
+                border-radius: 5px !important;
+            }
+            .stTabs>div>div>button:hover {
+                background-color: #8f94fb !important;
+            }
+            footer {
+                text-align: center;
+                color: #ffffff;
+                font-size: 14px;
+                margin-top: 20px;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
 def extract_text_from_pdfs(uploaded_pdfs):
     """Read and extract text content from uploaded PDF files."""
     combined_text = ""
@@ -66,6 +114,13 @@ def application_interface():
     """Define the main interface and workflow of the Streamlit app."""
     st.set_page_config(page_title="PDF Chat Assistant", layout="wide")
 
+    # Add custom CSS
+    add_custom_css()
+
+    # App Header
+    st.title("📖 AI-Powered PDF Chat Assistant")
+    st.markdown("**Interact with your PDFs effortlessly using advanced AI!**")
+
     # Multi-tab layout
     tabs = st.tabs(["📂 Upload PDFs", "💬 Chat with PDFs", "ℹ️ About"])
 
@@ -100,6 +155,9 @@ def application_interface():
 
         Built with ❤️ using Streamlit, LangChain, and Google Generative AI.
         """)
+
+    # Footer
+    st.markdown("<footer>© 2025 AI PDF Assistant. All rights reserved.</footer>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     application_interface()
