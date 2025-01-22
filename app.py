@@ -14,71 +14,59 @@ import os
 load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 
-# Custom CSS for enhanced UI with dark theme and improved visibility
+# Custom CSS for navy-blue background and adjusted text colors
 def add_custom_css():
     st.markdown(
         """
         <style>
             body {
-                background-color: black;
-                color: #ffffff;
+                background-color: #1a1a2e;
+                color: #f5f5f5;
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             }
             .stApp {
-                background: black;
-                color: #ffffff;
+                background-color: #1a1a2e;
+                color: #f5f5f5;
+            }
+            h1, h2, h3, h4, h5, h6 {
+                color: #f5f5f5;
+            }
+            p, li, ul {
+                color: #dcdcdc;
             }
             .stButton>button {
-                background-color: #00b894 !important;
+                background-color: #e94560 !important;
                 color: white !important;
                 border-radius: 10px !important;
-                font-size: 20px !important;
-                padding: 12px 24px;
+                font-size: 18px !important;
+                padding: 10px 20px;
+                box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.4);
             }
             .stButton>button:hover {
-                background-color: #55efc4 !important;
+                background-color: #ef798a !important;
                 color: black !important;
             }
             .stTextInput>div>div>input {
-                border-radius: 10px !important;
-                font-size: 20px !important;
-                padding: 12px;
-                background-color: #2d3436 !important;
+                background-color: #0f3460 !important;
                 color: white !important;
-                border: 1px solid #ffffff !important;
+                border-radius: 10px !important;
+                font-size: 16px !important;
+                padding: 10px;
+                border: 1px solid #e94560;
             }
-            h1, h2, h3, h4 {
-                color: #00cec9 !important;
-                font-size: 28px !important;
+            .stTextInput>div>div>input::placeholder {
+                color: #d3d3d3 !important;
             }
-            .stTabs>div>div>button {
+            .stTabs [data-baseweb="tab"] {
                 font-size: 18px !important;
-                background-color: #2d3436 !important;
-                color: #ffffff !important;
-                border: 1px solid #00cec9 !important;
-                border-radius: 5px !important;
-            }
-            .stTabs>div>div>button:hover {
-                background-color: #636e72 !important;
-            }
-            footer {
-                text-align: center;
-                color: #dfe6e9;
-                font-size: 16px;
-                margin-top: 20px;
-            }
-            .stMarkdown h1 {
-                font-size: 32px !important;
-                color: #00cec9 !important;
-            }
-            .stMarkdown p {
-                font-size: 18px !important;
+                color: white !important;
             }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
+# Function to extract text from PDFs
 def extract_text_from_pdfs(uploaded_pdfs):
     """Read and extract text content from uploaded PDF files."""
     combined_text = ""
@@ -88,17 +76,20 @@ def extract_text_from_pdfs(uploaded_pdfs):
             combined_text += page.extract_text()
     return combined_text
 
+# Function to split text into chunks
 def split_text_into_chunks(full_text):
     """Break down large text into smaller chunks with overlap for context retention."""
     splitter = RecursiveCharacterTextSplitter(chunk_size=8000, chunk_overlap=800)
     return splitter.split_text(full_text)
 
+# Function to build and save vector index
 def build_and_save_vector_index(chunks):
     """Generate vector embeddings for text chunks and save them as a FAISS index."""
     genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
     vector_index = FAISS.from_texts(chunks, embedding=genai_embeddings)
     vector_index.save_local("vector_index")
 
+# Asynchronous function to configure QA chain
 async def configure_qa_chain():
     """Set up the question-answering chain with a customized prompt."""
     prompt_structure = """
@@ -118,6 +109,7 @@ async def configure_qa_chain():
     custom_prompt = PromptTemplate(template=prompt_structure, input_variables=["context", "question"])
     return load_qa_chain(conversational_model, chain_type="stuff", prompt=custom_prompt)
 
+# Asynchronous function to process user query
 async def process_user_query(user_query):
     """Search relevant context and generate responses for user queries asynchronously."""
     genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
@@ -125,35 +117,37 @@ async def process_user_query(user_query):
     relevant_docs = vector_store.similarity_search(user_query)
     qa_chain = await configure_qa_chain()
     response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
-    st.write("AI Response:", response["output_text"])
+    st.write("**AI Response:**", response["output_text"])
 
+# Application interface
 def application_interface():
     """Define the main interface and workflow of the Streamlit app."""
+    add_custom_css()  # Add custom styling
+
     st.set_page_config(page_title="PDF Chat Assistant", layout="wide")
 
-    # Add custom CSS
-    add_custom_css()
-
-    # Multi-tab layout with "About" section first
+    # Multi-tab layout
     tabs = st.tabs(["ℹ️ About", "📂 Upload PDFs", "💬 Chat with PDFs"])
 
     with tabs[0]:  # About Tab
         st.header("ℹ️ About This Application")
-        st.markdown("""
-        ## Welcome to the **PDF Chat Assistant**!
-
-        This application allows you to:
-        - **Upload PDFs** to extract and process content.
-        - **Ask Questions** interactively and get context-aware answers.
-        - **Efficient Search** with AI-powered embeddings and FAISS index.
-
-        ### Features:
-        - **Multiple PDF Uploads**: Process multiple PDFs at once.
-        - **Smart Querying**: Context-based answers from document text.
-        - **User-Friendly Interface**: Optimized for a seamless experience.
-
-        Built with ❤️ using **Streamlit**, **LangChain**, and **Google Generative AI**.
-        """)
+        st.markdown(
+            """
+            **Welcome to the PDF Chat Assistant!**  
+            
+            This tool allows you to:  
+            - **Upload and process PDF documents** to extract their content.  
+            - **Ask questions interactively** based on the document content.  
+            - **Receive detailed answers** powered by AI.  
+            
+            **Features:**  
+            - Multi-document support.  
+            - Advanced context-based question answering.  
+            - Powered by LangChain, Streamlit, and Google Generative AI.  
+            
+            Built with ❤️ for seamless document exploration.
+            """
+        )
 
     with tabs[1]:  # Upload PDFs Tab
         st.header("📂 Upload and Process PDFs")
@@ -174,8 +168,6 @@ def application_interface():
         if query:
             asyncio.run(process_user_query(query))
 
-    # Footer
-    st.markdown("<footer>© 2025 AI PDF Assistant. All rights reserved.</footer>", unsafe_allow_html=True)
-
+# Run the app
 if __name__ == "__main__":
     application_interface()
