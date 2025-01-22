@@ -14,46 +14,55 @@ import os
 load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 
-# Custom CSS for enhanced UI
+# Custom CSS for enhanced UI with black background
 def add_custom_css():
     st.markdown(
         """
         <style>
             body {
-                background-color: #f5f5f5;
-                color: #333333;
+                background-color: black;
+                color: #ffffff;
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             }
             .stApp {
-                background: linear-gradient(to bottom right, #4e54c8, #8f94fb);
-                color: white;
+                background: black;
+                color: #ffffff;
             }
             .stButton>button {
-                background-color: #4CAF50 !important;
+                background-color: #00b894 !important;
                 color: white !important;
                 border-radius: 10px !important;
                 font-size: 18px !important;
+                padding: 10px 20px;
+            }
+            .stButton>button:hover {
+                background-color: #55efc4 !important;
+                color: black !important;
             }
             .stTextInput>div>div>input {
                 border-radius: 10px !important;
                 font-size: 18px !important;
+                padding: 10px;
+                background-color: #2d3436 !important;
+                color: white !important;
+                border: 1px solid #ffffff !important;
             }
             h1, h2, h3, h4 {
-                color: white !important;
+                color: #00cec9 !important;
             }
             .stTabs>div>div>button {
                 font-size: 16px !important;
-                background-color: #4e54c8 !important;
-                color: white !important;
-                border: 1px solid white !important;
+                background-color: #2d3436 !important;
+                color: #ffffff !important;
+                border: 1px solid #00cec9 !important;
                 border-radius: 5px !important;
             }
             .stTabs>div>div>button:hover {
-                background-color: #8f94fb !important;
+                background-color: #636e72 !important;
             }
             footer {
                 text-align: center;
-                color: #ffffff;
+                color: #dfe6e9;
                 font-size: 14px;
                 margin-top: 20px;
             }
