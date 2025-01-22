@@ -62,14 +62,16 @@ async def process_user_query(user_query):
     response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
     st.write("AI Response:", response["output_text"])
 
-def application_interface():
-    """Define the main interface and workflow of the Streamlit app."""
+def main():
+    """Main function with session state handling for smooth transitions."""
     st.set_page_config(page_title="PDF Chat Assistant", layout="wide")
 
-    # Multi-tab layout
-    tabs = st.tabs(["📂 Upload PDFs", "💬 Chat with PDFs", "ℹ️ About"])
+    # Initialize session state
+    if "pdf_processed" not in st.session_state:
+        st.session_state.pdf_processed = False
 
-    with tabs[0]:  # Upload PDFs Tab
+    if not st.session_state.pdf_processed:
+        # PDF Upload and Processing Page
         st.header("📂 Upload and Process PDFs")
         uploaded_files = st.file_uploader("Upload your PDF files here:", accept_multiple_files=True)
         if st.button("Process PDFs"):
@@ -79,27 +81,16 @@ def application_interface():
                     text_segments = split_text_into_chunks(document_text)
                     build_and_save_vector_index(text_segments)
                     st.success("PDFs successfully processed and indexed!")
+                    st.session_state.pdf_processed = True  # Update state
             else:
                 st.warning("Please upload at least one PDF file.")
-
-    with tabs[1]:  # Chat with PDFs Tab
+    else:
+        # Question-Asking Interface
         st.header("💬 Ask Questions from Your PDFs")
         query = st.text_input("Type your question here:")
         if query:
             asyncio.run(process_user_query(query))
 
-    with tabs[2]:  # About Tab
-        st.header("ℹ️ About This Application")
-        st.markdown("""
-        This **PDF Chat Assistant** allows you to upload PDF files, process their content, and ask questions interactively.
-        
-        **Key Features:**
-        - Upload and process multiple PDFs.
-        - Use AI to generate context-based answers to your queries.
-        - Efficient document search using FAISS.
-
-        Built with ❤️ using Streamlit, LangChain, and Google Generative AI.
-        """)
-
+# Run the app
 if __name__ == "__main__":
-    application_interface()
+    main()
