@@ -50,11 +50,32 @@ def add_custom_css():
             h1, h2, h3, h4 {
                 color: #00cec9 !important;
             }
+            .stTabs>div>div>button {
+                font-size: 16px !important;
+                background-color: #2d3436 !important;
+                color: #ffffff !important;
+                border: 1px solid #00cec9 !important;
+                border-radius: 5px !important;
+            }
+            .stTabs>div>div>button:hover {
+                background-color: #636e72 !important;
+            }
             footer {
                 text-align: center;
                 color: #dfe6e9;
                 font-size: 14px;
                 margin-top: 20px;
+            }
+            .footer-links {
+                margin-top: 10px;
+            }
+            .footer-links a {
+                color: #00cec9 !important;
+                text-decoration: none;
+                margin: 0 10px;
+            }
+            .footer-links a:hover {
+                text-decoration: underline;
             }
         </style>
         """,
@@ -67,25 +88,19 @@ def extract_text_from_pdfs(uploaded_pdfs):
     for uploaded_pdf in uploaded_pdfs:
         pdf = PdfReader(uploaded_pdf)
         for page in pdf.pages:
-            text = page.extract_text()
-            if text:
-                combined_text += text
+            combined_text += page.extract_text()
     return combined_text
 
 def split_text_into_chunks(full_text):
     """Break down large text into smaller chunks with overlap for context retention."""
-    splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=500)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=8000, chunk_overlap=800)
     return splitter.split_text(full_text)
 
 def build_and_save_vector_index(chunks):
     """Generate vector embeddings for text chunks and save them as a FAISS index."""
-    try:
-        genai_embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-001")
-        vector_index = FAISS.from_texts(chunks, embedding=genai_embeddings)
-        vector_index.save_local("vector_index")
-        st.success("Vector embeddings created successfully!")
-    except Exception as e:
-        st.error(f"Error during vector indexing: {e}")
+    genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    vector_index = FAISS.from_texts(chunks, embedding=genai_embeddings)
+    vector_index.save_local("vector_index")
 
 async def configure_qa_chain():
     """Set up the question-answering chain with a customized prompt."""
@@ -108,17 +123,12 @@ async def configure_qa_chain():
 
 async def process_user_query(user_query):
     """Search relevant context and generate responses for user queries asynchronously."""
-    try:
-        genai_embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-001")
-        vector_store = FAISS.load_local("vector_index", genai_embeddings, allow_dangerous_deserialization=True)
-        relevant_docs = vector_store.similarity_search(user_query)
-
-        qa_chain = await configure_qa_chain()
-        response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
-
-        st.write("**AI Response:**", response["output_text"])
-    except Exception as e:
-        st.error(f"Error during query processing: {e}")
+    genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    vector_store = FAISS.load_local("vector_index", genai_embeddings, allow_dangerous_deserialization=True)
+    relevant_docs = vector_store.similarity_search(user_query)
+    qa_chain = await configure_qa_chain()
+    response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
+    st.write("**AI Response:**", response["output_text"])
 
 def application_interface():
     """Define the main interface and workflow of the Streamlit app."""
@@ -148,18 +158,21 @@ def application_interface():
                     document_text = extract_text_from_pdfs(uploaded_files)
                     text_segments = split_text_into_chunks(document_text)
                     build_and_save_vector_index(text_segments)
+                    st.success("PDFs successfully processed!")
+                    # Show question box after processing
                     st.session_state["show_question_box"] = True
             else:
                 st.warning("Please upload at least one PDF file.")
+
+        # Add spacing after the Process PDFs button
+        st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
         # Display question input box after processing
         if st.session_state["show_question_box"]:
             st.header("💬 Ask Questions from Your PDFs")
             query = st.text_input("Type your question here:")
             if query:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(process_user_query(query))
+                asyncio.run(process_user_query(query))
 
     with tabs[1]:  # About Tab
         st.header("ℹ️ About This Application")
@@ -174,11 +187,16 @@ def application_interface():
         Built using Streamlit, LangChain, and Google Generative AI.
         """)
 
-    # Footer
+    # Footer with social media links
     st.markdown(
         """
         <footer>
             <p>© 2025 Piyush Singhal. All rights reserved.</p>
+            <div class="footer-links">
+                <a href="https://github.com/piyush06singhal" target="_blank">GitHub</a> |
+                <a href="https://www.linkedin.com/in/piyush--singhal/" target="_blank">LinkedIn</a> |
+                <a href="https://x.com/PiyushS07508112" target="_blank">Twitter</a>
+            </div>
         </footer>
         """,
         unsafe_allow_html=True,
