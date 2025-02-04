@@ -5,5 +5,5 @@ langchain>=0.0.200
 PyPDF2>=3.0.0
 faiss-cpu>=1.7.4
 chromadb>=0.3.25
-langchain_google_genai>=0.3.0  # Make sure you specify the version for consistency
-langchain-community>=0.0.200  # Specifying a version is often a good practice
+langchain_google_genai
+langchain-community
