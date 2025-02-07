@@ -2,18 +2,19 @@ import asyncio
 import streamlit as st
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain.vectorstores import FAISS
-from langchain.chains import RetrievalQA
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 import os
 
-# Load API keys from environment variables
+# Initialize API configuration
 load_dotenv()
-openai_api_key = os.getenv("OPENAI_API_KEY")
+api_key = os.getenv("GOOGLE_API_KEY")
 
-# Custom CSS for enhanced UI (unchanged)
+# Custom CSS for enhanced UI with black background
 def add_custom_css():
     st.markdown(
         """
@@ -82,30 +83,31 @@ def add_custom_css():
     )
 
 def extract_text_from_pdfs(uploaded_pdfs):
-    """Read and extract text from uploaded PDF files."""
+    """Read and extract text content from uploaded PDF files."""
     combined_text = ""
     for uploaded_pdf in uploaded_pdfs:
         pdf = PdfReader(uploaded_pdf)
         for page in pdf.pages:
-            combined_text += page.extract_text() or ""
+            combined_text += page.extract_text()
     return combined_text
 
 def split_text_into_chunks(full_text):
-    """Break down large text into smaller chunks."""
+    """Break down large text into smaller chunks with overlap for context retention."""
     splitter = RecursiveCharacterTextSplitter(chunk_size=8000, chunk_overlap=800)
     return splitter.split_text(full_text)
 
 def build_and_save_vector_index(chunks):
-    """Generate vector embeddings using OpenAI and save them in FAISS."""
-    embeddings = OpenAIEmbeddings(model="text-embedding-ada-002", openai_api_key=openai_api_key)
-    vector_index = FAISS.from_texts(chunks, embedding=embeddings)
+    """Generate vector embeddings for text chunks and save them as a FAISS index."""
+    genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    vector_index = FAISS.from_texts(chunks, embedding=genai_embeddings)
     vector_index.save_local("vector_index")
 
 async def configure_qa_chain():
-    """Set up the QA chain with OpenAI's GPT-4 model."""
+    """Set up the question-answering chain with a customized prompt."""
     prompt_structure = """
-    Provide a well-structured, concise, and contextually accurate answer.
-    If the information is not available, say: "The context does not contain the answer."
+    Provide detailed answers based on the context provided. 
+    If the information is unavailable, respond with, "The context does not contain the answer."
+    Avoid generating inaccurate or fabricated responses.
 
     Context:
     {context}
@@ -115,21 +117,18 @@ async def configure_qa_chain():
 
     Response:
     """
-    llm = ChatOpenAI(model_name="gpt-4", temperature=0.4, openai_api_key=openai_api_key)
+    conversational_model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.4)
     custom_prompt = PromptTemplate(template=prompt_structure, input_variables=["context", "question"])
-    return RetrievalQA.from_chain_type(llm, retriever=None, chain_type="stuff", chain_prompt=custom_prompt)
+    return load_qa_chain(conversational_model, chain_type="stuff", prompt=custom_prompt)
 
 async def process_user_query(user_query):
-    """Search relevant context and generate responses asynchronously."""
-    embeddings = OpenAIEmbeddings(model="text-embedding-ada-002", openai_api_key=openai_api_key)
-    vector_store = FAISS.load_local("vector_index", embeddings, allow_dangerous_deserialization=True)
-    
-    retriever = vector_store.as_retriever()
+    """Search relevant context and generate responses for user queries asynchronously."""
+    genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    vector_store = FAISS.load_local("vector_index", genai_embeddings, allow_dangerous_deserialization=True)
+    relevant_docs = vector_store.similarity_search(user_query)
     qa_chain = await configure_qa_chain()
-    qa_chain.retriever = retriever
-
-    response = qa_chain.run({"query": user_query})
-    st.write("**AI Response:**", response)
+    response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
+    st.write("**AI Response:**", response["output_text"])
 
 def application_interface():
     """Define the main interface and workflow of the Streamlit app."""
@@ -140,7 +139,7 @@ def application_interface():
 
     # App Header
     st.title("📖 PDF Chat Assistant")
-    st.markdown("**Interact with your PDFs effortlessly using AI!**")
+    st.markdown("**Interact with your PDFs effortlessly using advanced AI!**")
 
     # Multi-tab layout
     tabs = st.tabs(["📂 Upload PDFs", "ℹ️ About"])
@@ -159,10 +158,14 @@ def application_interface():
                     document_text = extract_text_from_pdfs(uploaded_files)
                     text_segments = split_text_into_chunks(document_text)
                     build_and_save_vector_index(text_segments)
-                    st.success("PDFs successfully processed! Now you can ask questions.")
+                    st.success("PDFs successfully processed!")
+                    # Show question box after processing
                     st.session_state["show_question_box"] = True
             else:
                 st.warning("Please upload at least one PDF file.")
+
+        # Add spacing after the Process PDFs button
+        st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
         # Display question input box after processing
         if st.session_state["show_question_box"]:
@@ -181,7 +184,7 @@ def application_interface():
         - Use AI to generate context-based answers to your queries.
         - Efficient document search using FAISS.
 
-        Built using Streamlit, LangChain, FAISS, and OpenAI GPT-4.
+        Built using Streamlit, LangChain, and Google Generative AI.
         """)
 
     # Footer with social media links
