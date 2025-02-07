@@ -7,4 +7,4 @@ faiss-cpu>=1.7.4
 chromadb>=0.3.25
 langchain_google_genai
 langchain-community
-google_generative_ai
+
