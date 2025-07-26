@@ -110,4 +110,131 @@ def get_pdf_text(uploaded_files):
 @st.cache_data(show_spinner=False)
 def get_text_chunks(text):
     """Splits large text into smaller chunks. This function is cached."""
-    splitter = RecursiveCharacterTextSplitter(ch
+    splitter = RecursiveCharacterTextSplitter(chunk_size=8000, chunk_overlap=800)
+    return splitter.split_text(text)
+
+@st.cache_data(show_spinner=False)
+def get_vector_store(_text_chunks, key):
+    """Creates a FAISS vector store from text chunks. This function is cached."""
+    try:
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=key)
+        vector_store = FAISS.from_texts(texts=_text_chunks, embedding=embeddings)
+        return vector_store
+    except Exception as e:
+        st.error(f"🔴 Failed to create vector store: {e}")
+        return None
+
+def get_qa_chain(key):
+    """Set up the question-answering chain with a customized prompt."""
+    prompt_structure = """
+    Provide detailed answers based on the context provided. 
+    If the information is unavailable, respond with, "The context does not contain the answer."
+    Avoid generating inaccurate or fabricated responses.
+
+    Context:
+    {context}
+
+    User Query:
+    {question}
+
+    Response:
+    """
+    model = ChatGoogleGenerativeAI(model="gemini-1.0-pro", temperature=0.4, google_api_key=key)
+    custom_prompt = PromptTemplate(template=prompt_structure, input_variables=["context", "question"])
+    return load_qa_chain(model, chain_type="stuff", prompt=custom_prompt)
+
+def process_user_query(user_query, vector_store, key):
+    """Search relevant context and generate responses for user queries."""
+    try:
+        relevant_docs = vector_store.similarity_search(user_query)
+        qa_chain = get_qa_chain(key)
+        response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
+        st.write("**AI Response:**", response["output_text"])
+    except Exception as e:
+        st.error(f"🔴 An error occurred while processing your query: {e}")
+
+
+# --- MAIN INTERFACE (Corrected with Caching Logic) ---
+def application_interface():
+    """Define the main interface and workflow of the Streamlit app."""
+    st.set_page_config(page_title="PDF Chat Assistant", layout="wide")
+    add_custom_css()
+
+    st.title("📖 PDF Chat Assistant")
+    st.markdown("**Interact with your PDFs effortlessly using advanced AI!**")
+
+    tabs = st.tabs(["📂 Upload PDFs", "ℹ️ About"])
+
+    if "vector_store" not in st.session_state:
+        st.session_state.vector_store = None
+
+    with tabs[0]:  # Upload PDFs Tab
+        st.header("📂 Upload and Process PDFs")
+        uploaded_files = st.file_uploader("Upload your PDF files here:", accept_multiple_files=True)
+
+        if st.button("Process PDFs"):
+            if uploaded_files:
+                with st.status("Processing documents...", expanded=True) as status:
+                    status.write("Step 1: Extracting text...")
+                    raw_text = get_pdf_text(tuple(uploaded_files))
+                    if not raw_text:
+                        status.update(label="Error: No text found!", state="error")
+                        st.stop()
+                    status.write("✅ Text extracted.")
+
+                    status.write("Step 2: Splitting text into chunks...")
+                    text_chunks = get_text_chunks(raw_text)
+                    if not text_chunks:
+                        status.update(label="Error: Failed to create chunks!", state="error")
+                        st.stop()
+                    status.write("✅ Text split into chunks.")
+
+                    status.write("Step 3: Creating vector index (this may take a while on the first run)...")
+                    vector_store = get_vector_store(tuple(text_chunks), api_key)
+                    if vector_store:
+                        st.session_state.vector_store = vector_store
+                        status.update(label="Processing complete!", state="complete", expanded=False)
+                    else:
+                        status.update(label="Error: Vector creation failed!", state="error")
+            else:
+                st.warning("Please upload at least one PDF file.")
+
+        st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
+
+        if st.session_state.vector_store:
+            st.header("💬 Ask Questions from Your PDFs")
+            query = st.text_input("Type your question here:")
+            if query:
+                process_user_query(query, st.session_state.vector_store, api_key)
+
+    with tabs[1]:  # About Tab
+        st.header("ℹ️ About This Application")
+        st.markdown(""" 
+        This **PDF Chat Assistant** allows you to upload PDF files, process their content, and ask questions interactively.
+
+        **Key Features:**
+        - Upload and process multiple PDFs.
+        - **Caching:** Document processing is almost instant after the first run.
+        - Use AI to generate context-based answers to your queries.
+        - Efficient document search using FAISS.
+
+        Built using Streamlit, LangChain, and Google Generative AI.
+        """)
+
+    # Footer with social media links
+    st.markdown(
+        """
+        <footer>
+            <p>© 2025 Piyush Singhal. All rights reserved.</p>
+            <div class="footer-links">
+                <a href="https://github.com/piyush06singhal" target="_blank">GitHub</a> |
+                <a href="https://www.linkedin.com/in/piyush--singhal/" target="_blank">LinkedIn</a> |
+                <a href="https://x.com/PiyushS07508112" target="_blank">Twitter</a>
+            </div>
+        </footer>
+        """,
+        unsafe_allow_html=True,
+    )
+
+if __name__ == "__main__":
+    application_interface()
