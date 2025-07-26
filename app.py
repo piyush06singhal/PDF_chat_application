@@ -21,8 +21,6 @@ try:
     if not api_key:
         st.error("🔴 Google API Key not found. Please set it in your secrets.")
         st.stop()
-    # This line is crucial for the LangChain library to find the key.
-    os.environ["GOOGLE_API_KEY"] = api_key
 except Exception as e:
     st.error(f"🔴 Error loading API Key: {e}")
     st.stop()
@@ -112,10 +110,10 @@ def split_text_into_chunks(full_text):
     splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
     return splitter.split_text(full_text)
 
-def build_and_save_vector_index(chunks):
+def build_and_save_vector_index(chunks, api_key):
     """Creates a FAISS vector index from text chunks and saves it."""
     try:
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
         vector_index = FAISS.from_texts(chunks, embedding=embeddings)
         vector_index.save_local("faiss_index")
         return True
@@ -123,7 +121,7 @@ def build_and_save_vector_index(chunks):
         st.error(f"🔴 Failed to create vector index: {e}")
         return False
 
-def get_qa_chain():
+def get_qa_chain(api_key):
     """Configures and returns a question-answering chain."""
     prompt_template = """
     You are a helpful assistant. Answer the question as detailed as possible from the provided context.
@@ -138,14 +136,14 @@ def get_qa_chain():
 
     Answer:
     """
-    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
+    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3, google_api_key=api_key)
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     return load_qa_chain(model, chain_type="stuff", prompt=prompt)
 
-def process_user_query(user_query):
+def process_user_query(user_query, api_key):
     """Processes the user's query against the vector index."""
     try:
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
         # The 'allow_dangerous_deserialization' is required for loading FAISS indexes.
         vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
         relevant_docs = vector_store.similarity_search(user_query)
@@ -154,7 +152,7 @@ def process_user_query(user_query):
             st.warning("Could not find relevant information in the documents for your query.")
             return
 
-        qa_chain = get_qa_chain()
+        qa_chain = get_qa_chain(api_key)
         response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
         st.write("### Answer")
         st.write(response["output_text"])
@@ -200,7 +198,7 @@ def main():
                         st.error("Failed to split documents into chunks.")
                         st.stop()
 
-                    if build_and_save_vector_index(text_chunks):
+                    if build_and_save_vector_index(text_chunks, api_key):
                         st.session_state.processed = True
                         st.success("✅ Documents processed successfully!")
             else:
@@ -212,7 +210,7 @@ def main():
         st.header("💬 Ask a Question")
         user_question = st.text_input("What would you like to know from your documents?")
         if user_question:
-            process_user_query(user_question)
+            process_user_query(user_question, api_key)
     else:
         st.info("Please upload and process your documents using the sidebar to begin.")
 
