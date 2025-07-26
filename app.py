@@ -112,7 +112,8 @@ def extract_text_from_pdfs(uploaded_pdfs):
 
 def split_text_into_chunks(full_text):
     """Splits large text into smaller chunks for processing."""
-    splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
+    # Reduced chunk size for better performance and to avoid timeouts.
+    splitter = RecursiveCharacterTextSplitter(chunk_size=5000, chunk_overlap=500)
     return splitter.split_text(full_text)
 
 def build_and_save_vector_index(chunks, key):
@@ -186,20 +187,31 @@ def main():
 
         if st.button("Process PDFs"):
             if uploaded_files:
-                with st.spinner("Processing PDFs..."):
+                # Use st.status for more detailed, non-blocking feedback.
+                with st.status("Processing documents...", expanded=True) as status:
+                    st.write("Step 1: Extracting text from PDFs...")
                     document_text = extract_text_from_pdfs(uploaded_files)
                     if not document_text.strip():
+                        status.update(label="Error: No text found!", state="error", expanded=True)
                         st.error("Could not extract text. Ensure PDFs are not image-based.")
                         st.stop()
+                    st.write("✅ Text extracted successfully.")
 
+                    st.write("Step 2: Splitting text into chunks...")
                     text_chunks = split_text_into_chunks(document_text)
                     if not text_chunks:
+                        status.update(label="Error: Failed to create chunks!", state="error", expanded=True)
                         st.error("Failed to split documents into chunks.")
                         st.stop()
+                    st.write(f"✅ Text split into {len(text_chunks)} chunks.")
 
+                    st.write("Step 3: Creating vector index (this may take a while)...")
                     if build_and_save_vector_index(text_chunks, api_key):
-                        st.success("PDFs successfully processed!")
+                        status.update(label="Processing complete!", state="complete", expanded=False)
                         st.session_state.show_question_box = True
+                    else:
+                        status.update(label="Error: Failed during vector creation!", state="error", expanded=True)
+                        st.error("An error occurred during vector index creation. Check logs for details.")
             else:
                 st.warning("Please upload at least one PDF file.")
 
