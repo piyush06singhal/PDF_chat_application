@@ -1,3 +1,4 @@
+import asyncio
 import streamlit as st
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -9,22 +10,11 @@ from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 import os
 
-# --- INITIALIZATION (Corrected) ---
-# Load environment variables for local development.
+# Initialize API configuration
 load_dotenv()
+api_key = os.getenv("GOOGLE_API_KEY")
 
-# Configure the Google API key from Streamlit secrets.
-try:
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        st.error("🔴 Google API Key not found. Please set it in your Streamlit secrets.")
-        st.stop()
-except Exception as e:
-    st.error(f"🔴 Error loading API Key: {e}")
-    st.stop()
-
-
-# --- UI STYLING (Original) ---
+# Custom CSS for enhanced UI with black background
 def add_custom_css():
     st.markdown(
         """
@@ -92,39 +82,27 @@ def add_custom_css():
         unsafe_allow_html=True,
     )
 
-# --- CORE LOGIC (Corrected with Caching) ---
+def extract_text_from_pdfs(uploaded_pdfs):
+    """Read and extract text content from uploaded PDF files."""
+    combined_text = ""
+    for uploaded_pdf in uploaded_pdfs:
+        pdf = PdfReader(uploaded_pdf)
+        for page in pdf.pages:
+            combined_text += page.extract_text()
+    return combined_text
 
-@st.cache_data(show_spinner=False)
-def get_pdf_text(uploaded_files):
-    """Reads and extracts text from multiple PDF files. This function is cached."""
-    text = ""
-    for pdf in uploaded_files:
-        try:
-            pdf_reader = PdfReader(pdf)
-            for page in pdf_reader.pages:
-                text += page.extract_text() or ""
-        except Exception as e:
-            st.error(f"Error reading '{pdf.name}': {e}")
-    return text
-
-@st.cache_data(show_spinner=False)
-def get_text_chunks(text):
-    """Splits large text into smaller chunks. This function is cached."""
+def split_text_into_chunks(full_text):
+    """Break down large text into smaller chunks with overlap for context retention."""
     splitter = RecursiveCharacterTextSplitter(chunk_size=8000, chunk_overlap=800)
-    return splitter.split_text(text)
+    return splitter.split_text(full_text)
 
-@st.cache_data(show_spinner=False)
-def get_vector_store(_text_chunks, key):
-    """Creates a FAISS vector store from text chunks. This function is cached."""
-    try:
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=key)
-        vector_store = FAISS.from_texts(texts=_text_chunks, embedding=embeddings)
-        return vector_store
-    except Exception as e:
-        st.error(f"🔴 Failed to create vector store: {e}")
-        return None
+def build_and_save_vector_index(chunks):
+    """Generate vector embeddings for text chunks and save them as a FAISS index."""
+    genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    vector_index = FAISS.from_texts(chunks, embedding=genai_embeddings)
+    vector_index.save_local("vector_index")
 
-def get_qa_chain(key):
+async def configure_qa_chain():
     """Set up the question-answering chain with a customized prompt."""
     prompt_structure = """
     Provide detailed answers based on the context provided. 
@@ -139,34 +117,36 @@ def get_qa_chain(key):
 
     Response:
     """
-    model = ChatGoogleGenerativeAI(model="gemini-1.0-pro", temperature=0.4, google_api_key=key)
+    conversational_model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.4)
     custom_prompt = PromptTemplate(template=prompt_structure, input_variables=["context", "question"])
-    return load_qa_chain(model, chain_type="stuff", prompt=custom_prompt)
+    return load_qa_chain(conversational_model, chain_type="stuff", prompt=custom_prompt)
 
-def process_user_query(user_query, vector_store, key):
-    """Search relevant context and generate responses for user queries."""
-    try:
-        relevant_docs = vector_store.similarity_search(user_query)
-        qa_chain = get_qa_chain(key)
-        response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
-        st.write("**AI Response:**", response["output_text"])
-    except Exception as e:
-        st.error(f"🔴 An error occurred while processing your query: {e}")
+async def process_user_query(user_query):
+    """Search relevant context and generate responses for user queries asynchronously."""
+    genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    vector_store = FAISS.load_local("vector_index", genai_embeddings, allow_dangerous_deserialization=True)
+    relevant_docs = vector_store.similarity_search(user_query)
+    qa_chain = await configure_qa_chain()
+    response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
+    st.write("**AI Response:**", response["output_text"])
 
-
-# --- MAIN INTERFACE (Corrected with Caching Logic) ---
 def application_interface():
     """Define the main interface and workflow of the Streamlit app."""
     st.set_page_config(page_title="PDF Chat Assistant", layout="wide")
+
+    # Add custom CSS
     add_custom_css()
 
+    # App Header
     st.title("📖 PDF Chat Assistant")
     st.markdown("**Interact with your PDFs effortlessly using advanced AI!**")
 
+    # Multi-tab layout
     tabs = st.tabs(["📂 Upload PDFs", "ℹ️ About"])
 
-    if "vector_store" not in st.session_state:
-        st.session_state.vector_store = None
+    # State variable to toggle the question box
+    if "show_question_box" not in st.session_state:
+        st.session_state["show_question_box"] = False
 
     with tabs[0]:  # Upload PDFs Tab
         st.header("📂 Upload and Process PDFs")
@@ -174,38 +154,25 @@ def application_interface():
 
         if st.button("Process PDFs"):
             if uploaded_files:
-                with st.status("Processing documents...", expanded=True) as status:
-                    status.write("Step 1: Extracting text...")
-                    raw_text = get_pdf_text(tuple(uploaded_files))
-                    if not raw_text:
-                        status.update(label="Error: No text found!", state="error")
-                        st.stop()
-                    status.write("✅ Text extracted.")
-
-                    status.write("Step 2: Splitting text into chunks...")
-                    text_chunks = get_text_chunks(raw_text)
-                    if not text_chunks:
-                        status.update(label="Error: Failed to create chunks!", state="error")
-                        st.stop()
-                    status.write("✅ Text split into chunks.")
-
-                    status.write("Step 3: Creating vector index (this may take a while on the first run)...")
-                    vector_store = get_vector_store(tuple(text_chunks), api_key)
-                    if vector_store:
-                        st.session_state.vector_store = vector_store
-                        status.update(label="Processing complete!", state="complete", expanded=False)
-                    else:
-                        status.update(label="Error: Vector creation failed!", state="error")
+                with st.spinner("Processing PDFs..."):
+                    document_text = extract_text_from_pdfs(uploaded_files)
+                    text_segments = split_text_into_chunks(document_text)
+                    build_and_save_vector_index(text_segments)
+                    st.success("PDFs successfully processed!")
+                    # Show question box after processing
+                    st.session_state["show_question_box"] = True
             else:
                 st.warning("Please upload at least one PDF file.")
 
+        # Add spacing after the Process PDFs button
         st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
-        if st.session_state.vector_store:
+        # Display question input box after processing
+        if st.session_state["show_question_box"]:
             st.header("💬 Ask Questions from Your PDFs")
             query = st.text_input("Type your question here:")
             if query:
-                process_user_query(query, st.session_state.vector_store, api_key)
+                asyncio.run(process_user_query(query))
 
     with tabs[1]:  # About Tab
         st.header("ℹ️ About This Application")
@@ -214,7 +181,6 @@ def application_interface():
 
         **Key Features:**
         - Upload and process multiple PDFs.
-        - **Caching:** Document processing is almost instant after the first run.
         - Use AI to generate context-based answers to your queries.
         - Efficient document search using FAISS.
 
