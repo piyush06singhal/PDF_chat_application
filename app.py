@@ -141,7 +141,7 @@ def get_qa_chain(key):
 
     Answer:
     """
-    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3, google_api_key=key)
+    model = ChatGoogleGenerativeAI(model="gemini-1.0-pro", temperature=0.3, google_api_key=key)
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     return load_qa_chain(model, chain_type="stuff", prompt=prompt)
 
