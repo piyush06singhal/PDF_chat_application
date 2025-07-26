@@ -95,37 +95,40 @@ def add_custom_css():
     )
 
 
-# --- CORE LOGIC ---
-def extract_text_from_pdfs(uploaded_pdfs):
+# --- CORE LOGIC WITH CACHING ---
+# Cache the function that extracts text from PDFs.
+@st.cache_data(show_spinner=False)
+def get_pdf_text(uploaded_files):
     """Reads and extracts text from multiple PDF files."""
-    combined_text = ""
-    for uploaded_pdf in uploaded_pdfs:
+    text = ""
+    for pdf in uploaded_files:
         try:
-            pdf_reader = PdfReader(uploaded_pdf)
+            pdf_reader = PdfReader(pdf)
             for page in pdf_reader.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    combined_text += page_text
+                text += page.extract_text() or ""
         except Exception as e:
-            st.error(f"Error reading '{uploaded_pdf.name}': {e}")
-    return combined_text
+            st.error(f"Error reading '{pdf.name}': {e}")
+    return text
 
-def split_text_into_chunks(full_text):
-    """Splits large text into smaller chunks for processing."""
-    # Reduced chunk size for better performance and to avoid timeouts.
-    splitter = RecursiveCharacterTextSplitter(chunk_size=5000, chunk_overlap=500)
-    return splitter.split_text(full_text)
+# Cache the function that splits text into chunks.
+@st.cache_data(show_spinner=False)
+def get_text_chunks(text):
+    """Splits large text into smaller chunks."""
+    # Reduced chunk size to prevent API timeouts.
+    splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=400)
+    return splitter.split_text(text)
 
-def build_and_save_vector_index(chunks, key):
-    """Creates a FAISS vector index, passing the API key directly."""
+# Cache the function that creates the vector store. This is the most time-consuming part.
+@st.cache_data(show_spinner=False)
+def get_vector_store(_text_chunks, key):
+    """Creates and returns a FAISS vector store from text chunks."""
     try:
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=key)
-        vector_index = FAISS.from_texts(chunks, embedding=embeddings)
-        vector_index.save_local("faiss_index")
-        return True
+        vector_store = FAISS.from_texts(texts=_text_chunks, embedding=embeddings)
+        return vector_store
     except Exception as e:
-        st.error(f"🔴 Failed to create vector index: {e}")
-        return False
+        st.error(f"🔴 Failed to create vector store: {e}")
+        return None
 
 def get_qa_chain(key):
     """Configures the QA chain, passing the API key directly."""
@@ -146,13 +149,10 @@ def get_qa_chain(key):
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     return load_qa_chain(model, chain_type="stuff", prompt=prompt)
 
-def process_user_query(user_query, key):
-    """Processes the user's query, passing the API key directly."""
+def process_user_query(user_query, vector_store, key):
+    """Processes the user's query against the vector store."""
     try:
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=key)
-        vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
         relevant_docs = vector_store.similarity_search(user_query)
-
         if not relevant_docs:
             st.warning("Could not find relevant information for your query.")
             return
@@ -160,9 +160,6 @@ def process_user_query(user_query, key):
         qa_chain = get_qa_chain(key)
         response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
         st.write("**AI Response:**", response["output_text"])
-
-    except FileNotFoundError:
-        st.error("🔴 Vector index not found. Please process your PDF files first.")
     except Exception as e:
         st.error(f"🔴 An error occurred: {e}")
 
@@ -178,8 +175,8 @@ def main():
 
     tabs = st.tabs(["📂 Upload PDFs", "ℹ️ About"])
 
-    if "show_question_box" not in st.session_state:
-        st.session_state.show_question_box = False
+    if "vector_store" not in st.session_state:
+        st.session_state.vector_store = None
 
     with tabs[0]:  # Upload PDFs Tab
         st.header("📂 Upload and Process PDFs")
@@ -187,41 +184,39 @@ def main():
 
         if st.button("Process PDFs"):
             if uploaded_files:
-                # Use st.status for more detailed, non-blocking feedback.
                 with st.status("Processing documents...", expanded=True) as status:
-                    st.write("Step 1: Extracting text from PDFs...")
-                    document_text = extract_text_from_pdfs(uploaded_files)
-                    if not document_text.strip():
-                        status.update(label="Error: No text found!", state="error", expanded=True)
-                        st.error("Could not extract text. Ensure PDFs are not image-based.")
+                    status.write("Step 1: Extracting text...")
+                    raw_text = get_pdf_text(uploaded_files)
+                    if not raw_text:
+                        status.update(label="Error: No text found!", state="error")
                         st.stop()
-                    st.write("✅ Text extracted successfully.")
+                    status.write("✅ Text extracted.")
 
-                    st.write("Step 2: Splitting text into chunks...")
-                    text_chunks = split_text_into_chunks(document_text)
+                    status.write("Step 2: Splitting text into chunks...")
+                    text_chunks = get_text_chunks(raw_text)
                     if not text_chunks:
-                        status.update(label="Error: Failed to create chunks!", state="error", expanded=True)
-                        st.error("Failed to split documents into chunks.")
+                        status.update(label="Error: Failed to create chunks!", state="error")
                         st.stop()
-                    st.write(f"✅ Text split into {len(text_chunks)} chunks.")
+                    status.write(f"✅ Text split into {len(text_chunks)} chunks.")
 
-                    st.write("Step 3: Creating vector index (this may take a while)...")
-                    if build_and_save_vector_index(text_chunks, api_key):
+                    status.write("Step 3: Creating vector index (this may take a while on first run)...")
+                    vector_store = get_vector_store(text_chunks, api_key)
+                    if vector_store:
+                        st.session_state.vector_store = vector_store
                         status.update(label="Processing complete!", state="complete", expanded=False)
-                        st.session_state.show_question_box = True
                     else:
-                        status.update(label="Error: Failed during vector creation!", state="error", expanded=True)
-                        st.error("An error occurred during vector index creation. Check logs for details.")
+                        status.update(label="Error: Vector creation failed!", state="error")
+
             else:
                 st.warning("Please upload at least one PDF file.")
 
         st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
 
-        if st.session_state.show_question_box:
+        if st.session_state.vector_store:
             st.header("💬 Ask Questions from Your PDFs")
             query = st.text_input("Type your question here:")
             if query:
-                process_user_query(query, api_key)
+                process_user_query(query, st.session_state.vector_store, api_key)
 
     with tabs[1]:  # About Tab
         st.header("ℹ️ About This Application")
@@ -230,6 +225,7 @@ def main():
 
         **Key Features:**
         - Upload and process multiple PDFs.
+        - **Caching:** Document processing is almost instant after the first run.
         - Use AI to generate context-based answers to your queries.
         - Efficient document search using FAISS.
 
