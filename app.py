@@ -15,12 +15,13 @@ import os
 load_dotenv()
 
 # Configure the Google API key.
-# The app will fail gracefully if the key is not found.
+# This is the most reliable way to ensure LangChain libraries find the key.
 try:
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         st.error("🔴 Google API Key not found. Please set it in your secrets.")
         st.stop()
+    os.environ["GOOGLE_API_KEY"] = api_key
 except Exception as e:
     st.error(f"🔴 Error loading API Key: {e}")
     st.stop()
@@ -110,10 +111,11 @@ def split_text_into_chunks(full_text):
     splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
     return splitter.split_text(full_text)
 
-def build_and_save_vector_index(chunks, api_key):
+def build_and_save_vector_index(chunks):
     """Creates a FAISS vector index from text chunks and saves it."""
     try:
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
+        # The library will automatically use the GOOGLE_API_KEY environment variable.
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
         vector_index = FAISS.from_texts(chunks, embedding=embeddings)
         vector_index.save_local("faiss_index")
         return True
@@ -121,7 +123,7 @@ def build_and_save_vector_index(chunks, api_key):
         st.error(f"🔴 Failed to create vector index: {e}")
         return False
 
-def get_qa_chain(api_key):
+def get_qa_chain():
     """Configures and returns a question-answering chain."""
     prompt_template = """
     You are a helpful assistant. Answer the question as detailed as possible from the provided context.
@@ -136,15 +138,16 @@ def get_qa_chain(api_key):
 
     Answer:
     """
-    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3, google_api_key=api_key)
+    # The library will automatically use the GOOGLE_API_KEY environment variable.
+    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     return load_qa_chain(model, chain_type="stuff", prompt=prompt)
 
-def process_user_query(user_query, api_key):
+def process_user_query(user_query):
     """Processes the user's query against the vector index."""
     try:
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
-        # The 'allow_dangerous_deserialization' is required for loading FAISS indexes.
+        # The library will automatically use the GOOGLE_API_KEY environment variable.
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
         vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
         relevant_docs = vector_store.similarity_search(user_query)
 
@@ -152,7 +155,7 @@ def process_user_query(user_query, api_key):
             st.warning("Could not find relevant information in the documents for your query.")
             return
 
-        qa_chain = get_qa_chain(api_key)
+        qa_chain = get_qa_chain()
         response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
         st.write("### Answer")
         st.write(response["output_text"])
@@ -198,7 +201,7 @@ def main():
                         st.error("Failed to split documents into chunks.")
                         st.stop()
 
-                    if build_and_save_vector_index(text_chunks, api_key):
+                    if build_and_save_vector_index(text_chunks):
                         st.session_state.processed = True
                         st.success("✅ Documents processed successfully!")
             else:
@@ -210,7 +213,7 @@ def main():
         st.header("💬 Ask a Question")
         user_question = st.text_input("What would you like to know from your documents?")
         if user_question:
-            process_user_query(user_question, api_key)
+            process_user_query(user_question)
     else:
         st.info("Please upload and process your documents using the sidebar to begin.")
 
