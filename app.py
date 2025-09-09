@@ -9,9 +9,38 @@ from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 import os
 
-# Initialize API configuration
+# Initialize API configuration (supports local .env and Streamlit Cloud secrets)
 load_dotenv()
-api_key = os.getenv("GOOGLE_API_KEY")
+
+# Prefer Streamlit secrets on cloud; fallback to environment variables locally
+api_key = None
+try:
+    # st.secrets is available on Streamlit Cloud
+    if hasattr(st, "secrets") and "GOOGLE_API_KEY" in st.secrets:
+        api_key = st.secrets["GOOGLE_API_KEY"]
+except Exception:
+    pass
+
+if not api_key:
+    api_key = os.getenv("GOOGLE_API_KEY")
+
+# Ensure downstream libraries can read the key from environment
+if api_key:
+    # Sanitize in case quotes/spaces were pasted around the key
+    api_key = api_key.strip().strip('"').strip("'")
+    os.environ["GOOGLE_API_KEY"] = api_key
+
+def validate_api_key() -> bool:
+    """Quickly validate the Gemini API key with a tiny embeddings call."""
+    try:
+        test_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        # minimal 1-token-ish input to minimize usage
+        _ = test_embeddings.embed_query("ok")
+        return True
+    except Exception as err:
+        st.error("API key validation failed. Please ensure you are using a Gemini API key from AI Studio and that it is pasted without quotes/spaces.")
+        st.caption(f"Details: {err}")
+        return False
 
 # Custom CSS for enhanced UI with black background
 def add_custom_css():
@@ -149,6 +178,9 @@ def application_interface():
     # Check API key early and fail fast with a clear message
     if not api_key or not isinstance(api_key, str) or len(api_key.strip()) == 0:
         st.error("GOOGLE_API_KEY is missing. Please create a .env file with GOOGLE_API_KEY=<your_key>.")
+        st.stop()
+    # Validate by doing a tiny embeddings call; if it fails, stop early
+    if not validate_api_key():
         st.stop()
 
     # App Header
