@@ -1,3 +1,4 @@
+import asyncio
 import streamlit as st
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -9,38 +10,9 @@ from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 import os
 
-# Initialize API configuration (supports local .env and Streamlit Cloud secrets)
+# Initialize API configuration
 load_dotenv()
-
-# Prefer Streamlit secrets on cloud; fallback to environment variables locally
-api_key = None
-try:
-    # st.secrets is available on Streamlit Cloud
-    if hasattr(st, "secrets") and "GOOGLE_API_KEY" in st.secrets:
-        api_key = st.secrets["GOOGLE_API_KEY"]
-except Exception:
-    pass
-
-if not api_key:
-    api_key = os.getenv("GOOGLE_API_KEY")
-
-# Ensure downstream libraries can read the key from environment
-if api_key:
-    # Sanitize in case quotes/spaces were pasted around the key
-    api_key = api_key.strip().strip('"').strip("'")
-    os.environ["GOOGLE_API_KEY"] = api_key
-
-def validate_api_key() -> bool:
-    """Quickly validate the Gemini API key with a tiny embeddings call."""
-    try:
-        test_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-        # minimal 1-token-ish input to minimize usage
-        _ = test_embeddings.embed_query("ok")
-        return True
-    except Exception as err:
-        st.error("API key validation failed. Please ensure you are using a Gemini API key from AI Studio and that it is pasted without quotes/spaces.")
-        st.caption(f"Details: {err}")
-        return False
+api_key = os.getenv("GOOGLE_API_KEY")
 
 # Custom CSS for enhanced UI with black background
 def add_custom_css():
@@ -116,13 +88,12 @@ def extract_text_from_pdfs(uploaded_pdfs):
     for uploaded_pdf in uploaded_pdfs:
         pdf = PdfReader(uploaded_pdf)
         for page in pdf.pages:
-            page_text = page.extract_text() or ""
-            combined_text += page_text
+            combined_text += page.extract_text()
     return combined_text
 
 def split_text_into_chunks(full_text):
     """Break down large text into smaller chunks with overlap for context retention."""
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=8000, chunk_overlap=800)
     return splitter.split_text(full_text)
 
 def build_and_save_vector_index(chunks):
@@ -131,7 +102,7 @@ def build_and_save_vector_index(chunks):
     vector_index = FAISS.from_texts(chunks, embedding=genai_embeddings)
     vector_index.save_local("vector_index")
 
-def configure_qa_chain():
+async def configure_qa_chain():
     """Set up the question-answering chain with a customized prompt."""
     prompt_structure = """
     Provide detailed answers based on the context provided. 
@@ -146,27 +117,18 @@ def configure_qa_chain():
 
     Response:
     """
-    conversational_model = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.4)
+    conversational_model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.4)
     custom_prompt = PromptTemplate(template=prompt_structure, input_variables=["context", "question"])
     return load_qa_chain(conversational_model, chain_type="stuff", prompt=custom_prompt)
 
-def process_user_query(user_query):
-    """Search relevant context and generate responses for user queries."""
-    try:
-        if not os.path.isdir("vector_index"):
-            st.warning("Please process PDFs first to build the index.")
-            return
-        genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-        vector_store = FAISS.load_local("vector_index", genai_embeddings, allow_dangerous_deserialization=True)
-        relevant_docs = vector_store.similarity_search(user_query, k=4)
-        if not relevant_docs:
-            st.warning("No relevant context found in the PDFs for this question.")
-            return
-        qa_chain = configure_qa_chain()
-        response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
-        st.write("**AI Response:**", response.get("output_text", ""))
-    except Exception as e:
-        st.error(f"Failed to generate answer: {str(e)}")
+async def process_user_query(user_query):
+    """Search relevant context and generate responses for user queries asynchronously."""
+    genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    vector_store = FAISS.load_local("vector_index", genai_embeddings, allow_dangerous_deserialization=True)
+    relevant_docs = vector_store.similarity_search(user_query)
+    qa_chain = await configure_qa_chain()
+    response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
+    st.write("**AI Response:**", response["output_text"])
 
 def application_interface():
     """Define the main interface and workflow of the Streamlit app."""
@@ -174,14 +136,6 @@ def application_interface():
 
     # Add custom CSS
     add_custom_css()
-
-    # Check API key early and fail fast with a clear message
-    if not api_key or not isinstance(api_key, str) or len(api_key.strip()) == 0:
-        st.error("GOOGLE_API_KEY is missing. Please create a .env file with GOOGLE_API_KEY=<your_key>.")
-        st.stop()
-    # Validate by doing a tiny embeddings call; if it fails, stop early
-    if not validate_api_key():
-        st.stop()
 
     # App Header
     st.title("📖 PDF Chat Assistant")
@@ -196,25 +150,17 @@ def application_interface():
 
     with tabs[0]:  # Upload PDFs Tab
         st.header("📂 Upload and Process PDFs")
-        uploaded_files = st.file_uploader("Upload your PDF files here:", type=["pdf"], accept_multiple_files=True)
+        uploaded_files = st.file_uploader("Upload your PDF files here:", accept_multiple_files=True)
 
         if st.button("Process PDFs"):
             if uploaded_files:
-                try:
-                    with st.spinner("Processing PDFs..."):
-                        document_text = extract_text_from_pdfs(uploaded_files)
-                        if not document_text.strip():
-                            st.warning("No extractable text found in the uploaded PDFs.")
-                        text_segments = split_text_into_chunks(document_text)
-                        if not text_segments:
-                            st.warning("No text segments were created. Please try a different PDF.")
-                        else:
-                            build_and_save_vector_index(text_segments)
-                            st.success("PDFs successfully processed!")
-                            # Show question box after processing
-                            st.session_state["show_question_box"] = True
-                except Exception as e:
-                    st.error(f"Failed to process PDFs: {str(e)}")
+                with st.spinner("Processing PDFs..."):
+                    document_text = extract_text_from_pdfs(uploaded_files)
+                    text_segments = split_text_into_chunks(document_text)
+                    build_and_save_vector_index(text_segments)
+                    st.success("PDFs successfully processed!")
+                    # Show question box after processing
+                    st.session_state["show_question_box"] = True
             else:
                 st.warning("Please upload at least one PDF file.")
 
@@ -225,12 +171,8 @@ def application_interface():
         if st.session_state["show_question_box"]:
             st.header("💬 Ask Questions from Your PDFs")
             query = st.text_input("Type your question here:")
-            if st.button("Get Answer"):
-                if not query.strip():
-                    st.warning("Please enter a question.")
-                else:
-                    with st.spinner("Generating answer..."):
-                        process_user_query(query)
+            if query:
+                asyncio.run(process_user_query(query))
 
     with tabs[1]:  # About Tab
         st.header("ℹ️ About This Application")
