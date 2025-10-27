@@ -90,24 +90,48 @@ def extract_text_from_pdfs(uploaded_pdfs):
     """Read and extract text content from uploaded PDF files."""
     combined_text = ""
     for uploaded_pdf in uploaded_pdfs:
-        pdf = PdfReader(uploaded_pdf)
-        for page in pdf.pages:
-            combined_text += page.extract_text()
+        try:
+            pdf = PdfReader(uploaded_pdf)
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    combined_text += text + "\n"
+        except Exception as e:
+            st.warning(f"Error reading {uploaded_pdf.name}: {str(e)}")
+    
+    if not combined_text.strip():
+        raise ValueError("No text could be extracted from the PDF files")
+    
     return combined_text
 
 def split_text_into_chunks(full_text):
     """Break down large text into smaller chunks with overlap for context retention."""
-    splitter = RecursiveCharacterTextSplitter(chunk_size=8000, chunk_overlap=800)
-    return splitter.split_text(full_text)
+    if not full_text or not full_text.strip():
+        raise ValueError("Cannot split empty text into chunks")
+    
+    splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
+    chunks = splitter.split_text(full_text)
+    
+    if not chunks:
+        raise ValueError("Text splitting resulted in no chunks")
+    
+    return chunks
 
 def build_and_save_vector_index(chunks):
     """Generate vector embeddings for text chunks and save them as a FAISS index."""
+    if not chunks:
+        raise ValueError("No chunks provided for embedding")
+    
+    st.info(f"Creating embeddings for {len(chunks)} text chunks...")
+    
     try:
-        genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
         vector_index = FAISS.from_texts(chunks, embedding=genai_embeddings)
         vector_index.save_local("vector_index")
     except Exception as e:
         st.error(f"Error creating embeddings: {str(e)}")
+        import traceback
+        st.error(f"Traceback: {traceback.format_exc()}")
         raise
 
 async def configure_qa_chain():
@@ -132,7 +156,7 @@ async def configure_qa_chain():
 async def process_user_query(user_query):
     """Search relevant context and generate responses for user queries asynchronously."""
     try:
-        genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
         vector_store = FAISS.load_local("vector_index", genai_embeddings, allow_dangerous_deserialization=True)
         relevant_docs = vector_store.similarity_search(user_query)
         qa_chain = await configure_qa_chain()
@@ -140,6 +164,8 @@ async def process_user_query(user_query):
         st.write("**AI Response:**", response["output_text"])
     except Exception as e:
         st.error(f"Error processing query: {str(e)}")
+        import traceback
+        st.error(f"Traceback: {traceback.format_exc()}")
 
 def application_interface():
     """Define the main interface and workflow of the Streamlit app."""
@@ -167,14 +193,22 @@ def application_interface():
             if uploaded_files:
                 with st.spinner("Processing PDFs..."):
                     try:
+                        st.info("Extracting text from PDFs...")
                         document_text = extract_text_from_pdfs(uploaded_files)
+                        st.info(f"Extracted {len(document_text)} characters")
+                        
+                        st.info("Splitting text into chunks...")
                         text_segments = split_text_into_chunks(document_text)
+                        st.info(f"Created {len(text_segments)} chunks")
+                        
                         build_and_save_vector_index(text_segments)
                         st.success("PDFs successfully processed!")
                         # Show question box after processing
                         st.session_state["show_question_box"] = True
                     except Exception as e:
                         st.error(f"Failed to process PDFs: {str(e)}")
+                        import traceback
+                        st.error(f"Details: {traceback.format_exc()}")
             else:
                 st.warning("Please upload at least one PDF file.")
 
