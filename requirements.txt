@@ -7,3 +7,6 @@ faiss-cpu>=1.7.4
 chromadb>=0.3.25
 langchain_google_genai
 langchain-community
+pdf2image>=1.16.0
+pytesseract>=0.3.10
+Pillow>=9.0.0

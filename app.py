@@ -89,18 +89,36 @@ def add_custom_css():
 def extract_text_from_pdfs(uploaded_pdfs):
     """Read and extract text content from uploaded PDF files."""
     combined_text = ""
+    
     for uploaded_pdf in uploaded_pdfs:
         try:
+            # Reset file pointer to beginning
+            uploaded_pdf.seek(0)
             pdf = PdfReader(uploaded_pdf)
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    combined_text += text + "\n"
+            pdf_text = ""
+            
+            st.info(f"Processing {uploaded_pdf.name} ({len(pdf.pages)} pages)...")
+            
+            # Extract text from each page
+            for page_num, page in enumerate(pdf.pages):
+                try:
+                    text = page.extract_text()
+                    if text and len(text.strip()) > 10:  # At least 10 characters
+                        pdf_text += text + "\n"
+                except Exception as page_error:
+                    st.warning(f"Error on page {page_num + 1}: {str(page_error)}")
+            
+            if pdf_text.strip():
+                combined_text += pdf_text
+                st.success(f"✓ Extracted {len(pdf_text)} characters from {uploaded_pdf.name}")
+            else:
+                st.error(f"✗ {uploaded_pdf.name} appears to be a scanned/image PDF with no extractable text. Please use a text-based PDF.")
+                
         except Exception as e:
-            st.warning(f"Error reading {uploaded_pdf.name}: {str(e)}")
+            st.error(f"Error reading {uploaded_pdf.name}: {str(e)}")
     
     if not combined_text.strip():
-        raise ValueError("No text could be extracted from the PDF files")
+        raise ValueError("No text could be extracted from any PDF files. Your PDFs may be:\n- Scanned images (not text-based)\n- Password protected\n- Corrupted\n\nPlease try uploading different PDF files with selectable text.")
     
     return combined_text
 
