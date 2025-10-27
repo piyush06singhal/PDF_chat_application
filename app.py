@@ -154,19 +154,24 @@ def build_and_save_vector_index(chunks):
 async def configure_qa_chain():
     """Set up the question-answering chain with a customized prompt."""
     prompt_structure = """
-    Provide detailed answers based on the context provided. 
-    If the information is unavailable, respond with, "The context does not contain the answer."
-    Avoid generating inaccurate or fabricated responses.
+    You are a helpful AI assistant analyzing PDF documents. Answer the question based on the context provided from the uploaded PDFs.
+    
+    Instructions:
+    - Provide detailed and accurate answers using information from the context
+    - If the answer spans multiple documents, synthesize the information
+    - If the information is not in the context, say "I couldn't find that information in the uploaded PDFs."
+    - Be conversational and helpful
+    - Cite specific details when available
 
-    Context:
+    Context from PDFs:
     {context}
 
-    User Query:
+    Question:
     {question}
 
-    Response:
+    Answer:
     """
-    conversational_model = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.4)
+    conversational_model = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.3)
     custom_prompt = PromptTemplate(template=prompt_structure, input_variables=["context", "question"])
     return load_qa_chain(conversational_model, chain_type="stuff", prompt=custom_prompt)
 
@@ -175,7 +180,8 @@ async def process_user_query(user_query):
     try:
         genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
         vector_store = FAISS.load_local("vector_index", genai_embeddings, allow_dangerous_deserialization=True)
-        relevant_docs = vector_store.similarity_search(user_query)
+        # Increase k to retrieve more relevant documents from multiple PDFs
+        relevant_docs = vector_store.similarity_search(user_query, k=10)
         qa_chain = await configure_qa_chain()
         response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
         st.write("**AI Response:**", response["output_text"])
