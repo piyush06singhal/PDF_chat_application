@@ -195,6 +195,9 @@ async def process_user_query(user_query):
 def application_interface():
     """Define the main interface and workflow of the Streamlit app."""
     st.set_page_config(page_title="PDF Chat Assistant", layout="wide")
+    
+    # Increase file upload limit to 500MB
+    st.set_option('server.maxUploadSize', 500)
 
     # Add custom CSS
     add_custom_css()
@@ -212,7 +215,20 @@ def application_interface():
 
     with tabs[0]:  # Upload PDFs Tab
         st.header("📂 Upload and Process PDFs")
-        uploaded_files = st.file_uploader("Upload your PDF files here:", accept_multiple_files=True)
+        st.markdown("**Supported:** PDF files up to 500MB each")
+        uploaded_files = st.file_uploader(
+            "Upload your PDF files here:", 
+            accept_multiple_files=True,
+            type=['pdf'],
+            help="You can upload multiple PDF files at once"
+        )
+        
+        # Show uploaded files
+        if uploaded_files:
+            st.write(f"**{len(uploaded_files)} file(s) selected:**")
+            for file in uploaded_files:
+                file_size_mb = file.size / (1024 * 1024)
+                st.write(f"- {file.name} ({file_size_mb:.2f} MB)")
 
         if st.button("Process PDFs"):
             if uploaded_files:
