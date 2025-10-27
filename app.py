@@ -98,7 +98,7 @@ def split_text_into_chunks(full_text):
 
 def build_and_save_vector_index(chunks):
     """Generate vector embeddings for text chunks and save them as a FAISS index."""
-    genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
     vector_index = FAISS.from_texts(chunks, embedding=genai_embeddings)
     vector_index.save_local("vector_index")
 
@@ -117,13 +117,13 @@ async def configure_qa_chain():
 
     Response:
     """
-    conversational_model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.4)
+    conversational_model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.4, google_api_key=api_key)
     custom_prompt = PromptTemplate(template=prompt_structure, input_variables=["context", "question"])
     return load_qa_chain(conversational_model, chain_type="stuff", prompt=custom_prompt)
 
 async def process_user_query(user_query):
     """Search relevant context and generate responses for user queries asynchronously."""
-    genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
     vector_store = FAISS.load_local("vector_index", genai_embeddings, allow_dangerous_deserialization=True)
     relevant_docs = vector_store.similarity_search(user_query)
     qa_chain = await configure_qa_chain()
