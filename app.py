@@ -12,11 +12,18 @@ import os
 
 # Initialize API configuration
 load_dotenv()
-api_key = os.getenv("GOOGLE_API_KEY")
+
+# Try to get API key from Streamlit secrets first (for cloud deployment), then from .env
+try:
+    api_key = st.secrets["GOOGLE_API_KEY"]
+except:
+    api_key = os.getenv("GOOGLE_API_KEY")
 
 # Set the API key as environment variable for Google GenAI
 if api_key:
     os.environ["GOOGLE_API_KEY"] = api_key
+else:
+    st.error("⚠️ GOOGLE_API_KEY not found! Please add it to Streamlit secrets or .env file.")
 
 # Custom CSS for enhanced UI with black background
 def add_custom_css():
