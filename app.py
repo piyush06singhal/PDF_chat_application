@@ -14,6 +14,10 @@ import os
 load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 
+# Set the API key as environment variable for Google GenAI
+if api_key:
+    os.environ["GOOGLE_API_KEY"] = api_key
+
 # Custom CSS for enhanced UI with black background
 def add_custom_css():
     st.markdown(
@@ -98,9 +102,13 @@ def split_text_into_chunks(full_text):
 
 def build_and_save_vector_index(chunks):
     """Generate vector embeddings for text chunks and save them as a FAISS index."""
-    genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
-    vector_index = FAISS.from_texts(chunks, embedding=genai_embeddings)
-    vector_index.save_local("vector_index")
+    try:
+        genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        vector_index = FAISS.from_texts(chunks, embedding=genai_embeddings)
+        vector_index.save_local("vector_index")
+    except Exception as e:
+        st.error(f"Error creating embeddings: {str(e)}")
+        raise
 
 async def configure_qa_chain():
     """Set up the question-answering chain with a customized prompt."""
@@ -117,18 +125,21 @@ async def configure_qa_chain():
 
     Response:
     """
-    conversational_model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.4, google_api_key=api_key)
+    conversational_model = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.4)
     custom_prompt = PromptTemplate(template=prompt_structure, input_variables=["context", "question"])
     return load_qa_chain(conversational_model, chain_type="stuff", prompt=custom_prompt)
 
 async def process_user_query(user_query):
     """Search relevant context and generate responses for user queries asynchronously."""
-    genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
-    vector_store = FAISS.load_local("vector_index", genai_embeddings, allow_dangerous_deserialization=True)
-    relevant_docs = vector_store.similarity_search(user_query)
-    qa_chain = await configure_qa_chain()
-    response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
-    st.write("**AI Response:**", response["output_text"])
+    try:
+        genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        vector_store = FAISS.load_local("vector_index", genai_embeddings, allow_dangerous_deserialization=True)
+        relevant_docs = vector_store.similarity_search(user_query)
+        qa_chain = await configure_qa_chain()
+        response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
+        st.write("**AI Response:**", response["output_text"])
+    except Exception as e:
+        st.error(f"Error processing query: {str(e)}")
 
 def application_interface():
     """Define the main interface and workflow of the Streamlit app."""
@@ -155,12 +166,15 @@ def application_interface():
         if st.button("Process PDFs"):
             if uploaded_files:
                 with st.spinner("Processing PDFs..."):
-                    document_text = extract_text_from_pdfs(uploaded_files)
-                    text_segments = split_text_into_chunks(document_text)
-                    build_and_save_vector_index(text_segments)
-                    st.success("PDFs successfully processed!")
-                    # Show question box after processing
-                    st.session_state["show_question_box"] = True
+                    try:
+                        document_text = extract_text_from_pdfs(uploaded_files)
+                        text_segments = split_text_into_chunks(document_text)
+                        build_and_save_vector_index(text_segments)
+                        st.success("PDFs successfully processed!")
+                        # Show question box after processing
+                        st.session_state["show_question_box"] = True
+                    except Exception as e:
+                        st.error(f"Failed to process PDFs: {str(e)}")
             else:
                 st.warning("Please upload at least one PDF file.")
 
