@@ -195,9 +195,6 @@ async def process_user_query(user_query):
 def application_interface():
     """Define the main interface and workflow of the Streamlit app."""
     st.set_page_config(page_title="PDF Chat Assistant", layout="wide")
-    
-    # Increase file upload limit to 500MB
-    st.set_option('server.maxUploadSize', 500)
 
     # Add custom CSS
     add_custom_css()
