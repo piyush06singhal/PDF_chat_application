@@ -210,6 +210,10 @@ def application_interface():
             help="You can upload multiple PDF files at once"
         )
         
+        # Hide question box if no files are uploaded
+        if not uploaded_files:
+            st.session_state["show_question_box"] = False
+        
         # Show uploaded files
         if uploaded_files:
             st.write(f"**{len(uploaded_files)} file(s) selected:**")
