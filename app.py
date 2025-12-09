@@ -1,10 +1,10 @@
 import streamlit as st
 from PyPDF2 import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain_community.vectorstores import FAISS
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrou
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from dotenv import load_dotenv
@@ -172,7 +172,7 @@ def configure_qa_chain(retriever):
 
     Answer:"""
     
-    conversational_model = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.3)
+    conversational_model = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.3)
     
     prompt = ChatPromptTemplate.from_template(prompt_template)
     
