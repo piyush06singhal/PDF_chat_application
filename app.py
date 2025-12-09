@@ -164,7 +164,7 @@ Question: {question}
 
 Answer:"""
     
-    conversational_model = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.3)
+    conversational_model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
     response = conversational_model.invoke(prompt)
     
     return response.content
