@@ -1,10 +1,12 @@
 import streamlit as st
 from PyPDF2 import PdfReader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_community.vectorstores import FAISS
+from langchain.vectorstores import FAISS
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.chains.question_answering import load_qa_chain
+from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
-import google.generativeai as genai
 import os
 
 # Initialize API configuration
@@ -19,7 +21,6 @@ except:
 # Set the API key as environment variable for Google GenAI
 if api_key:
     os.environ["GOOGLE_API_KEY"] = api_key
-    genai.configure(api_key=api_key)
 else:
     st.error("⚠️ GOOGLE_API_KEY not found! Please add it to Streamlit secrets or .env file.")
 
@@ -142,51 +143,47 @@ def build_and_save_vector_index(chunks):
         raise ValueError("No chunks provided for embedding")
     
     try:
-        genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+        genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
         vector_index = FAISS.from_texts(chunks, embedding=genai_embeddings)
         vector_index.save_local("vector_index")
     except Exception as e:
         st.error(f"Error creating embeddings: {str(e)}")
         raise
 
-def get_response_from_llm(context, question):
-    """Get response from the LLM using context and question."""
-    prompt = f"""You are a helpful AI assistant analyzing PDF documents. Answer the question based on the context provided from the uploaded PDFs.
+def get_conversational_chain():
+    """Set up the conversational chain for question answering."""
+    prompt_template = """
+    Answer the question as detailed as possible from the provided context. If the answer is not in
+    the provided context, just say, "answer is not available in the context". Don't provide wrong answers.
     
-Instructions:
-- Provide detailed and accurate answers using information from the context
-- If the answer spans multiple documents, synthesize the information
-- If the information is not in the context, say "I couldn't find that information in the uploaded PDFs."
-- Be conversational and helpful
-- Cite specific details when available
-
-Context: {context}
-
-Question: {question}
-
-Answer:"""
+    Context:\n{context}\n
+    Question:\n{question}\n
     
-    model = genai.GenerativeModel('gemini-pro')
-    response = model.generate_content(prompt)
+    Answer:
+    """
     
-    return response.text
+    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
+    prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
+    chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
+    
+    return chain
 
 def process_user_query(user_query):
     """Search relevant context and generate responses for user queries."""
     try:
-        genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+        genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
         vector_store = FAISS.load_local("vector_index", genai_embeddings, allow_dangerous_deserialization=True)
         
         # Retrieve relevant documents
-        relevant_docs = vector_store.similarity_search(user_query, k=10)
+        docs = vector_store.similarity_search(user_query, k=10)
         
-        # Format context from documents
-        context = "\n\n".join([doc.page_content for doc in relevant_docs])
+        # Get conversational chain
+        chain = get_conversational_chain()
         
-        # Get response from LLM
-        response = get_response_from_llm(context, user_query)
+        # Get response
+        response = chain({"input_documents": docs, "question": user_query}, return_only_outputs=True)
         
-        st.write("**AI Response:**", response)
+        st.write("**AI Response:**", response["output_text"])
     except Exception as e:
         st.error(f"Error processing query: {str(e)}")
 
