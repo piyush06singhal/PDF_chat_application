@@ -1,12 +1,11 @@
-import asyncio
 import streamlit as st
 from PyPDF2 import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.chains import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
+from langchain.chains import RetrievalQA
+from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
 import os
 
@@ -151,10 +150,9 @@ def build_and_save_vector_index(chunks):
         st.error(f"Error creating embeddings: {str(e)}")
         raise
 
-async def configure_qa_chain():
+def configure_qa_chain(vector_store):
     """Set up the question-answering chain with a customized prompt."""
-    prompt_structure = """
-    You are a helpful AI assistant analyzing PDF documents. Answer the question based on the context provided from the uploaded PDFs.
+    prompt_template = """You are a helpful AI assistant analyzing PDF documents. Answer the question based on the context provided from the uploaded PDFs.
     
     Instructions:
     - Provide detailed and accurate answers using information from the context
@@ -163,28 +161,38 @@ async def configure_qa_chain():
     - Be conversational and helpful
     - Cite specific details when available
 
-    Context from PDFs:
-    {context}
+    Context: {context}
 
-    Question:
-    {input}
+    Question: {question}
 
-    Answer:
-    """
+    Answer:"""
+    
     conversational_model = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.3)
-    custom_prompt = ChatPromptTemplate.from_template(prompt_structure)
-    return create_stuff_documents_chain(conversational_model, custom_prompt)
+    
+    PROMPT = PromptTemplate(
+        template=prompt_template, input_variables=["context", "question"]
+    )
+    
+    qa_chain = RetrievalQA.from_chain_type(
+        llm=conversational_model,
+        chain_type="stuff",
+        retriever=vector_store.as_retriever(search_kwargs={"k": 10}),
+        return_source_documents=True,
+        chain_type_kwargs={"prompt": PROMPT}
+    )
+    
+    return qa_chain
 
-async def process_user_query(user_query):
-    """Search relevant context and generate responses for user queries asynchronously."""
+def process_user_query(user_query):
+    """Search relevant context and generate responses for user queries."""
     try:
         genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
         vector_store = FAISS.load_local("vector_index", genai_embeddings, allow_dangerous_deserialization=True)
-        # Increase k to retrieve more relevant documents from multiple PDFs
-        relevant_docs = vector_store.similarity_search(user_query, k=10)
-        qa_chain = await configure_qa_chain()
-        response = await qa_chain.ainvoke({"context": relevant_docs, "input": user_query})
-        st.write("**AI Response:**", response)
+        
+        qa_chain = configure_qa_chain(vector_store)
+        response = qa_chain({"query": user_query})
+        
+        st.write("**AI Response:**", response["result"])
     except Exception as e:
         st.error(f"Error processing query: {str(e)}")
 
@@ -249,7 +257,7 @@ def application_interface():
             st.header("💬 Ask Questions from Your PDFs")
             query = st.text_input("Type your question here:")
             if query:
-                asyncio.run(process_user_query(query))
+                process_user_query(query)
 
     with tabs[1]:  # About Tab
         st.header("ℹ️ About This Application")
