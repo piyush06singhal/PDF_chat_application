@@ -175,10 +175,14 @@ def process_user_query(user_query):
         genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
         vector_store = FAISS.load_local("vector_index", genai_embeddings, allow_dangerous_deserialization=True)
         
-        retriever = vector_store.as_retriever(search_kwargs={"k": 10})
-        qa_chain = configure_qa_chain(retriever)
+        # Retrieve relevant documents
+        relevant_docs = vector_store.similarity_search(user_query, k=10)
         
-        response = qa_chain.invoke(user_query)
+        # Format context from documents
+        context = "\n\n".join([doc.page_content for doc in relevant_docs])
+        
+        # Get response from LLM
+        response = get_response_from_llm(context, user_query)
         
         st.write("**AI Response:**", response)
     except Exception as e:
