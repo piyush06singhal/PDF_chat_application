@@ -5,8 +5,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.chains.question_answering import load_qa_chain
-from langchain.prompts import PromptTemplate
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.prompts import ChatPromptTemplate
 from dotenv import load_dotenv
 import os
 
@@ -167,13 +167,13 @@ async def configure_qa_chain():
     {context}
 
     Question:
-    {question}
+    {input}
 
     Answer:
     """
     conversational_model = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.3)
-    custom_prompt = PromptTemplate(template=prompt_structure, input_variables=["context", "question"])
-    return load_qa_chain(conversational_model, chain_type="stuff", prompt=custom_prompt)
+    custom_prompt = ChatPromptTemplate.from_template(prompt_structure)
+    return create_stuff_documents_chain(conversational_model, custom_prompt)
 
 async def process_user_query(user_query):
     """Search relevant context and generate responses for user queries asynchronously."""
@@ -183,8 +183,8 @@ async def process_user_query(user_query):
         # Increase k to retrieve more relevant documents from multiple PDFs
         relevant_docs = vector_store.similarity_search(user_query, k=10)
         qa_chain = await configure_qa_chain()
-        response = qa_chain({"input_documents": relevant_docs, "question": user_query}, return_only_outputs=True)
-        st.write("**AI Response:**", response["output_text"])
+        response = await qa_chain.ainvoke({"context": relevant_docs, "input": user_query})
+        st.write("**AI Response:**", response)
     except Exception as e:
         st.error(f"Error processing query: {str(e)}")
 
