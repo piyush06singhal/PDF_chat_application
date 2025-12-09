@@ -4,8 +4,9 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.chains import RetrievalQA
-from langchain_core.prompts import PromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
 from dotenv import load_dotenv
 import os
 
@@ -150,7 +151,11 @@ def build_and_save_vector_index(chunks):
         st.error(f"Error creating embeddings: {str(e)}")
         raise
 
-def configure_qa_chain(vector_store):
+def format_docs(docs):
+    """Format retrieved documents into a single string."""
+    return "\n\n".join(doc.page_content for doc in docs)
+
+def configure_qa_chain(retriever):
     """Set up the question-answering chain with a customized prompt."""
     prompt_template = """You are a helpful AI assistant analyzing PDF documents. Answer the question based on the context provided from the uploaded PDFs.
     
@@ -169,16 +174,13 @@ def configure_qa_chain(vector_store):
     
     conversational_model = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.3)
     
-    PROMPT = PromptTemplate(
-        template=prompt_template, input_variables=["context", "question"]
-    )
+    prompt = ChatPromptTemplate.from_template(prompt_template)
     
-    qa_chain = RetrievalQA.from_chain_type(
-        llm=conversational_model,
-        chain_type="stuff",
-        retriever=vector_store.as_retriever(search_kwargs={"k": 10}),
-        return_source_documents=True,
-        chain_type_kwargs={"prompt": PROMPT}
+    qa_chain = (
+        {"context": retriever | format_docs, "question": RunnablePassthrough()}
+        | prompt
+        | conversational_model
+        | StrOutputParser()
     )
     
     return qa_chain
@@ -189,10 +191,12 @@ def process_user_query(user_query):
         genai_embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
         vector_store = FAISS.load_local("vector_index", genai_embeddings, allow_dangerous_deserialization=True)
         
-        qa_chain = configure_qa_chain(vector_store)
-        response = qa_chain({"query": user_query})
+        retriever = vector_store.as_retriever(search_kwargs={"k": 10})
+        qa_chain = configure_qa_chain(retriever)
         
-        st.write("**AI Response:**", response["result"])
+        response = qa_chain.invoke(user_query)
+        
+        st.write("**AI Response:**", response)
     except Exception as e:
         st.error(f"Error processing query: {str(e)}")
 
