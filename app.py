@@ -3,10 +3,8 @@ from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain.vectorstores import FAISS
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.chains.question_answering import load_qa_chain
-from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
+import google.generativeai as genai
 import os
 
 # Initialize API configuration
@@ -21,6 +19,7 @@ except:
 # Set the API key as environment variable for Google GenAI
 if api_key:
     os.environ["GOOGLE_API_KEY"] = api_key
+    genai.configure(api_key=api_key)
 else:
     st.error("⚠️ GOOGLE_API_KEY not found! Please add it to Streamlit secrets or .env file.")
 
@@ -150,23 +149,25 @@ def build_and_save_vector_index(chunks):
         st.error(f"Error creating embeddings: {str(e)}")
         raise
 
-def get_conversational_chain():
-    """Set up the conversational chain for question answering."""
-    prompt_template = """
+def get_gemini_response(context, question):
+    """Get response from Gemini using direct API."""
+    prompt = f"""
     Answer the question as detailed as possible from the provided context. If the answer is not in
     the provided context, just say, "answer is not available in the context". Don't provide wrong answers.
     
-    Context:\n{context}\n
-    Question:\n{question}\n
+    Context:
+    {context}
+    
+    Question:
+    {question}
     
     Answer:
     """
     
-    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
-    prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
-    chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
+    model = genai.GenerativeModel('gemini-pro')
+    response = model.generate_content(prompt)
     
-    return chain
+    return response.text
 
 def process_user_query(user_query):
     """Search relevant context and generate responses for user queries."""
@@ -177,13 +178,13 @@ def process_user_query(user_query):
         # Retrieve relevant documents
         docs = vector_store.similarity_search(user_query, k=10)
         
-        # Get conversational chain
-        chain = get_conversational_chain()
+        # Combine document content
+        context = "\n\n".join([doc.page_content for doc in docs])
         
-        # Get response
-        response = chain({"input_documents": docs, "question": user_query}, return_only_outputs=True)
+        # Get response from Gemini
+        response = get_gemini_response(context, user_query)
         
-        st.write("**AI Response:**", response["output_text"])
+        st.write("**AI Response:**", response)
     except Exception as e:
         st.error(f"Error processing query: {str(e)}")
 
