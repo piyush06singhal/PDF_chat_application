@@ -1,9 +1,10 @@
 import streamlit as st
 from PyPDF2 import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from dotenv import load_dotenv
+import google.generativeai as genai
 import os
 
 # Initialize API configuration
@@ -18,6 +19,7 @@ except:
 # Set the API key as environment variable for Google GenAI
 if api_key:
     os.environ["GOOGLE_API_KEY"] = api_key
+    genai.configure(api_key=api_key)
 else:
     st.error("⚠️ GOOGLE_API_KEY not found! Please add it to Streamlit secrets or .env file.")
 
@@ -164,10 +166,10 @@ Question: {question}
 
 Answer:"""
     
-    conversational_model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
-    response = conversational_model.invoke(prompt)
+    model = genai.GenerativeModel('gemini-pro')
+    response = model.generate_content(prompt)
     
-    return response.content
+    return response.text
 
 def process_user_query(user_query):
     """Search relevant context and generate responses for user queries."""
