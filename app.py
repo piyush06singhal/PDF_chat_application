@@ -1,7 +1,7 @@
 import streamlit as st
 from PyPDF2 import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from dotenv import load_dotenv
 import google.generativeai as genai
@@ -141,7 +141,7 @@ def build_and_save_vector_index(chunks):
         raise ValueError("No chunks provided for embedding")
     
     try:
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         vector_index = FAISS.from_texts(chunks, embedding=embeddings)
         vector_index.save_local("vector_index")
     except Exception as e:
@@ -167,9 +167,9 @@ def get_conversational_chain():
     return chain
 
 async def process_user_query(user_query):
-    """Search relevant context and generate responses for user queries asynchronously."""
+    """Search relevant context and generate responses for user queries."""
     try:
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         vector_store = FAISS.load_local("vector_index", embeddings, allow_dangerous_deserialization=True)
         
         # Retrieve relevant documents
