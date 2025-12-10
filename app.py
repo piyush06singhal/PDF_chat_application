@@ -163,7 +163,7 @@ def get_gemini_response(context, question):
     Answer:
     """
     
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('gemini-flash-latest')
     response = model.generate_content(prompt)
     
     return response.text
