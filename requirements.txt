@@ -7,3 +7,5 @@ langchain-text-splitters
 faiss-cpu
 google-generativeai
 sentence-transformers
+torch
+transformers
