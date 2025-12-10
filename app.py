@@ -246,7 +246,7 @@ def application_interface():
             st.header("💬 Ask Questions from Your PDFs")
             query = st.text_input("Type your question here:")
             if query:
-                asyncio.run(process_user_query(query))
+                process_user_query(query)
 
     with tabs[1]:  # About Tab
         st.header("ℹ️ About This Application")
