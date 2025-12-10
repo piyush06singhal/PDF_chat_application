@@ -166,7 +166,7 @@ def get_conversational_chain():
     
     return chain
 
-async def process_user_query(user_query):
+def process_user_query(user_query):
     """Search relevant context and generate responses for user queries."""
     try:
         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
