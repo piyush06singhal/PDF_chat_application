@@ -4,7 +4,6 @@ python-dotenv
 langchain
 langchain-community
 langchain-text-splitters
-langchain-huggingface
 faiss-cpu
 google-generativeai
 sentence-transformers
