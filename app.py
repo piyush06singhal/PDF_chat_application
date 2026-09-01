@@ -167,11 +167,23 @@ def get_gemini_response(context, question):
     if api_key:
         genai.configure(api_key=api_key)
     
-    # Try active models in order of preference
-    model_names = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-pro']
+    # Dynamically find supported models for the configured API key
+    candidates = []
+    try:
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                candidates.append(m.name)
+    except Exception:
+        pass
+
+    # Ensure fallback names if list_models returns empty or fails
+    fallback_names = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash', 'models/gemini-1.5-flash', 'gemini-flash-latest']
+    for fb in fallback_names:
+        if fb not in candidates:
+            candidates.append(fb)
+            
     last_error = None
-    
-    for model_name in model_names:
+    for model_name in candidates:
         try:
             model = genai.GenerativeModel(model_name)
             response = model.generate_content(prompt)
@@ -180,7 +192,7 @@ def get_gemini_response(context, question):
             last_error = e
             continue
             
-    raise last_error
+    raise Exception(f"No working Gemini model found for your API key. Error: {str(last_error)}")
 
 def process_user_query(user_query):
     """Search relevant context and generate responses for user queries."""
