@@ -166,10 +166,21 @@ def get_gemini_response(context, question):
     
     if api_key:
         genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    response = model.generate_content(prompt)
     
-    return response.text
+    # Try active models in order of preference
+    model_names = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-pro']
+    last_error = None
+    
+    for model_name in model_names:
+        try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            last_error = e
+            continue
+            
+    raise last_error
 
 def process_user_query(user_query):
     """Search relevant context and generate responses for user queries."""
