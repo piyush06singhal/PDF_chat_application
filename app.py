@@ -16,9 +16,10 @@ try:
 except:
     api_key = os.getenv("GOOGLE_API_KEY")
 
-# Set the API key as environment variable for Google GenAI
+# Set the API key and configure Google GenAI SDK
 if api_key:
     os.environ["GOOGLE_API_KEY"] = api_key
+    genai.configure(api_key=api_key)
 else:
     st.error("⚠️ GOOGLE_API_KEY not found! Please add it to Streamlit secrets or .env file.")
 
@@ -163,7 +164,9 @@ def get_gemini_response(context, question):
     Answer:
     """
     
-    model = genai.GenerativeModel('gemini-flash-latest')
+    if api_key:
+        genai.configure(api_key=api_key)
+    model = genai.GenerativeModel('gemini-1.5-flash')
     response = model.generate_content(prompt)
     
     return response.text
